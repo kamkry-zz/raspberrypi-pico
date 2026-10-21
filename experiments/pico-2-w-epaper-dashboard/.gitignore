@@ -1,0 +1,7 @@
+.venv/
+backups/
+__pycache__/
+*.pyc
+.DS_Store
+secrets.py
+preview/

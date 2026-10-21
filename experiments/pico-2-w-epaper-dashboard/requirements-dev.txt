@@ -1,0 +1,3 @@
+# Optional: only needed to regenerate the bitmap fonts in lib/font_*.py.
+# The generated fonts are committed; runtime and preview use only the stdlib.
+pillow==13.0.0
