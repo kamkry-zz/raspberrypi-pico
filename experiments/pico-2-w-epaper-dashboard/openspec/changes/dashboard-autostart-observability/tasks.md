@@ -7,7 +7,7 @@
 - [x] 1.5 RTC from HTTP `Date` when NTP fails; e-paper BUSY timeout.
 - [x] 1.6 Verify on hardware: watchdog trip resets a stalled app (reset cause WDT).
 - [x] 1.7 Verify on hardware: Ctrl-C reboots into one maintenance boot.
-- [ ] 1.8 Verify on hardware: physical power cycle resumes with a fresh frame (user unplugs/replugs).
+- [x] 1.8 Verify on hardware: physical power cycle resumes with a fresh frame (2026-11-08: reset_cause=PWRON, first frame `ok` at 36 s, fresh weather).
 
 ## 2. Build and deploy
 
