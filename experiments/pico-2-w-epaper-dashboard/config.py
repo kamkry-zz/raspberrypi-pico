@@ -24,7 +24,9 @@ UTC_OFFSET_FALLBACK_S = 3600
 # --- Weather ---------------------------------------------------------------
 WEATHER_DAYS = 3
 WEATHER_HOURS = 12
-WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
+# Plain HTTP: a second TLS session does not fit the heap next to the OTLP
+# export (see README "Memory"); the forecast is public data.
+WEATHER_URL = "http://api.open-meteo.com/v1/forecast"
 HTTP_TIMEOUT_S = 12
 
 # --- Refresh policy --------------------------------------------------------
@@ -56,4 +58,48 @@ PIN_KEY_NEXT = 17
 # --- Behaviour -------------------------------------------------------------
 BUTTON_DEBOUNCE_MS = 300
 BUTTON_LONG_PRESS_MS = 1200
-USER_AGENT = "pico-epaper-dashboard/0.1"
+VERSION = "0.2.0"
+USER_AGENT = "pico-epaper-dashboard/" + VERSION
+
+# --- Resilience (auto-start, power loss, network outages) --------------------
+# Hardware watchdog fed only while the app makes progress; a Python-level
+# stall longer than WATCHDOG_STALL_S resets the board.  Must exceed the
+# longest legitimate blocking step (panel clear + refresh + network ~2 min).
+WATCHDOG_ENABLED = True
+WATCHDOG_STALL_S = 300
+# Retry delays after an offline / failed refresh (seconds); the last value
+# repeats.  A healthy board goes back to the top-of-hour schedule.
+RETRY_BACKOFF_S = (60, 120, 300, 600, 900)
+# Re-initialise the CYW43 radio after this many failed connects in a row and
+# reboot the whole board after WIFI_REBOOT_AFTER_FAILS.
+WIFI_REINIT_AFTER_FAILS = 2
+WIFI_REBOOT_AFTER_FAILS = 12
+# Last good weather, written atomically to flash and shown (as stale) when a
+# boot has no network yet.
+WEATHER_CACHE_FILE = "/weather.json"
+# /healthz turns unhealthy when no frame was displayed for this long.
+HEALTH_MAX_FRAME_AGE_S = 2 * 3600
+
+# Contiguous heap block taken right after the canvas and released only for
+# TLS/HTTP work, so the OTLP handshake (~26 KB) always finds room.
+HEAP_RESERVE = 24 * 1024
+
+# --- Observability (observatory.k3s) ---------------------------------------
+# Primary path: the cluster collector scrapes http://<pico>:METRICS_PORT/metrics
+# (prometheus/apps relay job).  No TLS on the Pico, so it always fits the heap.
+#
+# Optional OTLP/HTTP JSON push (metrics + logs + refresh traces) to the
+# collector, CA-verified like the other external appliances.  OFF by default:
+# measured on this board, a verified TLS session needs a ~17 KB contiguous
+# block and the heap (canvas 30 KB + ~89 KB of modules) fragments to a
+# largest free block of ~10 KB, so the handshake fails with ENOMEM.  Enable
+# only with firmware that freezes lib/ into flash (see README "Memory").
+OTLP_ENABLED = False
+OTLP_HOST = "otel.k3s"
+OTLP_CA_FILE = "certs/k3s-ca.der"  # krysdom my-selfsigned-ca, DER, public
+OTLP_INTERVAL_S = 60
+OTLP_TIMEOUT_S = 6
+OTEL_SERVICE_NAME = "pico-epaper-dashboard"
+OTEL_INSTANCE = "raspberry-pi-pico-w-01.iot"
+# Local Prometheus text endpoint (/metrics) and /healthz; 0 disables it.
+METRICS_PORT = 9100

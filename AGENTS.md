@@ -34,22 +34,17 @@
 
 ## Board state and safety
 
-- The board already contains a user program: `main.py` (~22 KB, 4.2-inch e-paper display) and `lib/`. A verified local backup is at `experiments/pico-1-w-led-blink/backups/pico-w-main.py` (gitignored). Do not delete it.
-- Default to `mpremote run` / `mpremote mount . run` for verification; both execute without writing to the board filesystem.
-- The dashboard is multi-module, so run it from its experiment directory with:
+- Since 2026-11-08 the board runs the **installed e-paper dashboard** (`:main.py` shim + `lib/*.mpy`, `config.mpy`, `secrets.py`, `certs/`). It autostarts on power-up with an armed hardware watchdog. Backups (gitignored, do not delete): the original 22 KB timetable at `experiments/pico-1-w-led-blink/backups/pico-w-main.py`; earlier `:main.py` files and the old board `/lib` (~600 KB of unused Adafruit/CPython packages, removed because flash was full) under `experiments/pico-2-w-epaper-dashboard/backups/`.
+- **Any `mpremote` connection interrupts the dashboard**: its Ctrl-C makes the app write `/maint` and reboot into one maintenance boot (REPL, no app, no watchdog). The first command then fails with "Device not configured"; rerun it. Holding KEY0 at power-up does the same. Reset or power-cycle to resume. Check a running board over the network instead: `curl http://raspberry-pi-pico-w-01.iot:9100/healthz` (and `/metrics`).
+- Deploy only when the user asks, and only with `tools/deploy.sh` from the dashboard directory (enters maintenance mode, backs up and verifies `:main.py`, builds `.mpy` with mpy-cross 1.23.0, copies `build/`, tagged reset). Restore a backup with `mpremote fs cp <backup> :main.py` from a maintenance boot plus a reset.
+- For host runs without installing, use the precompiled tree; it writes nothing to the board except `/weather.json`:
 
   ```sh
-  .venv/bin/mpremote mount . run main.py
+  .venv/bin/python tools/build.py
+  .venv/bin/mpremote mount build run build/main.py
   ```
 
-  `main.py` allocates the canvas before the panel clear; do not move that order without checking the heap. The first boot is ~45–60 s (vendor clear + first frame).
-- **Never** overwrite `:main.py` without first copying it to the experiment's gitignored `backups/` and verifying the copy:
-
-  ```sh
-  .venv/bin/mpremote fs cp :main.py backups/pico-w-main.py
-  ```
-
-- Only deploy (`mpremote fs cp main.py :main.py`) when the user explicitly asks. Restore with the reverse copy plus a board reset.
+  Source runs (`mount . run main.py`) compile ~100 KB on the board and can hit MemoryError. `lib/app.py` allocates the canvas before every other import; do not move that order without checking the heap. The heap is too small for a TLS session in the running app, so OTLP push is off (`OTLP_ENABLED`) and weather uses plain HTTP. The first boot is ~40–60 s (vendor clear + first frame).
 - Serial access is exclusive: never run `mpremote` commands in parallel, including from two agents or tools. A second process fails with "device may be in use by another program".
 
 ## Host tooling

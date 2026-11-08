@@ -7,6 +7,7 @@ import time
 import network
 
 import config
+import telemetry
 
 try:
     from secrets import WIFI_PASSWORD
@@ -14,6 +15,7 @@ except ImportError:
     WIFI_PASSWORD = None
 
 _wlan = None
+fails = 0  # consecutive failed connects
 
 
 def _ensure_wlan():
@@ -57,8 +59,8 @@ def mac_address():
         return "—"
 
 
-def connect(timeout_ms=20000):
-    global _wlan
+def connect(timeout_ms=20000, wait=True):
+    global _wlan, fails
     if not WIFI_PASSWORD or WIFI_PASSWORD == "CHANGE_ME":
         print("WiFi: secrets.py is missing or still contains CHANGE_ME")
         return False
@@ -73,6 +75,15 @@ def connect(timeout_ms=20000):
         print("WiFi hostname:", exc)
 
     _wlan = network.WLAN(network.STA_IF)
+    if fails and fails % config.WIFI_REINIT_AFTER_FAILS == 0:
+        # A wedged CYW43 association often only clears with a radio restart.
+        print("WiFi: re-initialising radio after %d failures" % fails)
+        try:
+            _wlan.disconnect()
+        except Exception:
+            pass
+        _wlan.active(False)
+        time.sleep_ms(500)
     _wlan.active(True)
     try:
         _wlan.config(pm=0)  # disable power save
@@ -80,21 +91,61 @@ def connect(timeout_ms=20000):
         pass
 
     if not _wlan.isconnected():
-        print("WiFi: connecting to", config.WIFI_SSID)
         try:
-            _wlan.connect(config.WIFI_SSID, WIFI_PASSWORD)
-        except Exception as exc:
-            print("WiFi connect error:", exc)
+            # CYW43: 1 = joining, 2 = joined and waiting for DHCP.
+            in_progress = 0 < _wlan.status() < 3
+        except Exception:
+            in_progress = False
+        if not in_progress:
+            print("WiFi: connecting to", config.WIFI_SSID)
+            try:
+                _wlan.connect(config.WIFI_SSID, WIFI_PASSWORD)
+            except Exception as exc:
+                print("WiFi connect error:", exc)
+                return _failed("error")
+        if not wait:
             return False
         started = time.ticks_ms()
         while not _wlan.isconnected():
             if time.ticks_diff(time.ticks_ms(), started) > timeout_ms:
                 print("WiFi: timeout, status", status_name())
-                return False
+                return _failed("timeout")
+            try:
+                status = _wlan.status()
+            except Exception:
+                status = 0
+            if status < 0:  # STAT_WRONG_PASSWORD / NO_AP_FOUND / CONNECT_FAIL
+                print("WiFi: failed, status", status_name())
+                return _failed(status_name())
             time.sleep_ms(200)
 
+    fails = 0
+    telemetry.inc("pico.wifi.connects", {"result": "ok"})
     print("WiFi: connected", _wlan.ifconfig()[0])
     return True
+
+
+def _failed(reason):
+    global fails
+    fails += 1
+    telemetry.inc("pico.wifi.connects", {"result": "fail"})
+    telemetry.log("WiFi connect failed: %s (%d in a row)" % (reason, fails), "WARN")
+    return False
+
+
+def begin():
+    """Start associating without waiting (overlaps the 24 s panel clear)."""
+    try:
+        connect(wait=False)
+    except Exception as exc:
+        print("WiFi begin:", repr(exc))
+
+
+def is_connected():
+    try:
+        return _wlan is not None and _wlan.isconnected()
+    except Exception:
+        return False
 
 
 def ensure(timeout_ms=20000):
@@ -282,17 +333,34 @@ def resolve_dns_name(ip, configured=""):
 
 
 # ------------------------------------------------------------------ NTP
+ntp_ok = False
+
+
 def ntp_sync():
+    global ntp_ok
     try:
         import ntptime
 
         ntptime.settime()
         epoch = int(time.time())
+        ntp_ok = True
         print("NTP: synced", epoch)
         return epoch
     except Exception as exc:
         print("NTP failed:", exc)
         return None
+
+
+def set_rtc(epoch):
+    """Set the RTC (UTC) from a unix epoch, e.g. an HTTP Date header."""
+    try:
+        import machine
+
+        y, mo, d, h, mi, s, wd, _ = time.gmtime(int(epoch))
+        machine.RTC().datetime((y, mo, d, wd, h, mi, s, 0))
+        print("RTC set from HTTP Date", epoch)
+    except Exception as exc:
+        print("RTC set failed:", exc)
 
 
 def now_epoch():

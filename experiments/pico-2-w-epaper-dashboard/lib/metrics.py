@@ -26,10 +26,23 @@ def reset_interval():
 
 
 def uptime_s():
-    return time.ticks_diff(time.ticks_ms(), _BOOT_TICKS) // 1000
+    # ticks_ms differences wrap after ~6 days; the supervisor accumulates.
+    try:
+        import supervisor
+
+        return supervisor.uptime_ms() // 1000
+    except ImportError:
+        return time.ticks_diff(time.ticks_ms(), _BOOT_TICKS) // 1000
 
 
 def reset_cause():
+    try:
+        import supervisor
+
+        if supervisor.boot_tag:
+            return supervisor.boot_tag
+    except ImportError:
+        pass
     try:
         value = machine.reset_cause()
     except Exception:

@@ -5,6 +5,8 @@ import time
 
 import config
 import http_client
+import store
+import telemetry
 import timeutil as T
 from strings_pl import TODAY, TOMORROW
 
@@ -129,6 +131,18 @@ def cached():
     return _CACHE
 
 
+def load_persisted():
+    """Load the last good weather from flash (marked stale) at boot."""
+    global _CACHE
+    value = store.load(config.WEATHER_CACHE_FILE)
+    if isinstance(value, dict) and value.get("current") and value.get("daily") is not None:
+        value["stale"] = True
+        _CACHE = value
+        print("Weather: loaded cached data from", value.get("fetched"))
+        return value
+    return None
+
+
 def fetch(force=True):
     """Fetch weather.  Returns None when there is no data and no cache."""
     global _CACHE, _CACHE_TICKS
@@ -148,11 +162,14 @@ def fetch(force=True):
         if status != 200:
             raise OSError("HTTP %d" % status)
         result = parse(json.loads(body.decode()))
-        result["fetched"] = int(time.time())
         result["date_epoch"] = T.parse_http_date(headers.get(b"date"))
+        # time.time() is meaningless before NTP; prefer the server's Date.
+        result["fetched"] = result["date_epoch"] or int(time.time())
         result["stale"] = False
         _CACHE = result
         _CACHE_TICKS = time.ticks_ms()
+        telemetry.inc("dashboard.weather.fetches", {"result": "ok"})
+        store.save(config.WEATHER_CACHE_FILE, result)
         print(
             "Weather: %.1f C, code %d, %d daily, %d hourly"
             % (
@@ -164,7 +181,8 @@ def fetch(force=True):
         )
         return result
     except Exception as exc:
-        print("Weather failed:", exc)
+        telemetry.inc("dashboard.weather.fetches", {"result": "fail"})
+        telemetry.log("Weather fetch failed: %r" % (exc,), "WARN")
         if _CACHE is not None:
             _CACHE["stale"] = True
             return _CACHE

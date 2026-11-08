@@ -1,1 +1,3 @@
 mpremote==1.29.0
+# Must match the board firmware (MicroPython 1.23.0) for .mpy compatibility.
+mpy-cross==1.23.0

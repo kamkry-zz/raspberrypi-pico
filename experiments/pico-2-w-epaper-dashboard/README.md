@@ -39,16 +39,21 @@ hourly refresh does not depend on any button.
 
 ## Board safety
 
-The board already contains a school-timetable program in `main.py` plus a
-`lib/` directory. This experiment runs **without writing to the board**:
+The dashboard is **installed** on the board (since 2026-11-08) and starts on
+every power-up. The previous programs are backed up (gitignored):
 
-```sh
-.venv/bin/mpremote mount . run main.py
-```
+- `backups/pico-w-main-*.py` — earlier `:main.py` files (LED blink).
+- `backups/pico-w-lib-20261108/` — the old board `/lib` (~600 KB of unused
+  Adafruit/CPython packages), removed because the flash was full.
+- `../pico-1-w-led-blink/backups/pico-w-main.py` — the original 22 KB
+  timetable program.
 
-Deploying (`mpremote fs cp ...`) is **not** part of the normal workflow. If
-you decide to deploy, back up `:main.py` and `:lib/` first and verify the copy.
-Never overwrite `:main.py` without an explicit decision.
+Restore any of them with `mpremote fs cp <backup> :main.py` (or `fs cp -r`)
+from a maintenance boot, then reset.
+
+**Connecting `mpremote` interrupts the running dashboard** (Ctrl-C) and the
+board reboots once into a maintenance REPL; the first mpremote command fails
+with "Device not configured" — rerun it. Reset or power-cycle to resume.
 
 ## Setup
 
@@ -72,22 +77,88 @@ DHCP reservation for it. The DNS PTR lookup found
 
 ## Run
 
+### Installed (autostart)
+
 ```sh
-.venv/bin/mpremote mount . run main.py
+tools/deploy.sh          # build .mpy, back up :main.py, copy, reset
 ```
 
-Expected sequence:
+`tools/deploy.sh` enters maintenance mode, backs up and verifies `:main.py`,
+runs `tools/build.py` (precompiles `lib/` with mpy-cross **1.23.0**, matching
+the firmware) and copies `build/` to the board. `main.py` on the board is a
+3-line shim; everything else is `.mpy`.
 
-1. ~20 s vendor init + clear (the panel flashes).
-2. Wi-Fi, NTP/HTTP-Date, DNS PTR, Open-Meteo fetch.
-3. One full dashboard refresh (~16–23 s).
-4. The panel shows the dashboard; the loop waits for the next hour or a button.
+On every power-up:
 
-`First frame` is the last startup log line. After it the loop is intentionally
-silent until a button event or the hourly refresh; the program has not stopped.
+1. Hardware watchdog armed; Wi-Fi association starts in the background.
+2. ~24 s vendor init + clear (the panel flashes).
+3. NTP (or the HTTP `Date` header), DNS PTR, Open-Meteo fetch, first frame.
+4. Hourly refresh at the top of the hour; KEY0/KEY1 change pages.
 
-First boot is typically **45–60 s**. The panel stays awake between updates.
-`Ctrl-C` stops the script without altering the image.
+If the network is not up yet (typical after a power cut, when the router boots
+slower than the Pico), the last weather persisted to flash is shown marked
+stale and the network is retried after 60 s, 2, 5, 10 and every 15 min; the
+panel is redrawn only once fresh data arrives.
+
+### Resilience
+
+| Failure | Recovery |
+|---|---|
+| Power cut | Autostart; cached weather (`/weather.json`, written atomically) until online |
+| App hangs (no heartbeat 300 s) | Hardware watchdog reset (`reset_cause=WDT`) |
+| C-level hang | Watchdog reset within ~8 s |
+| Uncaught exception | Logged, reset after 30 s, doubling per crash up to 15 min |
+| Wi-Fi fails | Radio re-init every 2 failures, board reboot after 12 |
+| Panel BUSY stuck | `OSError` after 45 s instead of hanging |
+
+Deliberate resets are tagged in a watchdog scratch register, so `reset_cause`
+reads `CRASH`, `MAINT`, `WIFI`, `DEPLOY` or `MEM` instead of `WDT`.
+
+### Maintenance mode
+
+One boot without the dashboard and without the watchdog, for `mpremote`:
+
+- send Ctrl-C (any `mpremote` command does) — the app writes `/maint` and
+  reboots, or
+- hold **KEY0** while plugging in power.
+
+The next reset or power cycle returns to the dashboard.
+
+### Observability
+
+- `http://raspberry-pi-pico-w-01.iot:9100/metrics` — Prometheus text:
+  `pico_uptime_seconds`, `pico_heap_{free,used}_bytes`,
+  `pico_flash_{used,total}_bytes`, `pico_cpu_temperature_celsius`,
+  `pico_cpu_active_ratio` (load), `pico_wifi_{connected,rssi_dBm}`,
+  `pico_wifi_connects_total`, `pico_boot_info{reset_cause,crash_count,...}`,
+  `dashboard_refreshes_total{trigger,result}`,
+  `dashboard_refresh_duration_milliseconds{stage}`,
+  `dashboard_last_refresh_time_seconds`, `dashboard_weather_age_seconds`,
+  `dashboard_weather_fetches_total{result}`, `dashboard_button_presses_total`.
+- `/healthz` — JSON; 200 while a frame was shown in the last 2 h, else 503.
+- observatory.k3s scrapes `/metrics` through the collector's `prometheus/apps`
+  relay as `job="pico-epaper-dashboard"` (krysdom-api `observability/values.yaml`).
+
+### Memory (why OTLP push is off)
+
+The heap is ~190 KB: canvas 30 KB, modules ~89 KB even precompiled (fonts
+and tables load into RAM). A CA-verified TLS session to `https://otel.k3s`
+works with ~41 KB free on a clean heap (measured), but inside the running app
+the largest free block is ~10 KB (75 KB free in total), so the handshake fails
+with ENOMEM. `lib/telemetry.py` contains a tested OTLP/HTTP JSON exporter
+(metrics, logs, refresh traces) behind `OTLP_ENABLED = False`. Turning it on
+needs firmware with `lib/` frozen into flash. For the same reason the weather
+is fetched over plain HTTP.
+
+### From the host (no install)
+
+```sh
+.venv/bin/python tools/build.py
+.venv/bin/mpremote mount build run build/main.py
+```
+
+Source runs (`mpremote mount . run main.py`) compile ~100 KB on the board and
+may run out of heap; prefer `build/`.
 
 ### Pages
 

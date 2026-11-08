@@ -37,7 +37,7 @@ class EPD42B:
     PLANE_BYTES = (EPD_WIDTH // 8) * EPD_HEIGHT
     FILL_CHUNK = 256
 
-    def __init__(self, waveform_ms=24000, clear_wait_ms=24000):
+    def __init__(self, waveform_ms=24000, clear_wait_ms=24000, idle=None):
         self.reset_pin = Pin(RST_PIN, Pin.OUT)
         self.busy_pin = Pin(BUSY_PIN, Pin.IN, Pin.PULL_UP)
         self.cs_pin = Pin(CS_PIN, Pin.OUT)
@@ -49,6 +49,7 @@ class EPD42B:
         self.revision_raw = None
         self.waveform_ms = waveform_ms
         self.asleep = False
+        self.idle = idle
 
         self.last_init_ms = 0
         self.last_transfer_ms = 0
@@ -76,7 +77,7 @@ class EPD42B:
         self.EPD_4IN2B_Clear()
         clear_elapsed = time.ticks_diff(time.ticks_ms(), clear_started)
         if clear_elapsed < 2000:
-            time.sleep_ms(clear_wait_ms)
+            self.delay_ms(clear_wait_ms)
             clear_elapsed += clear_wait_ms
         self.last_transfer_ms = 0
         self.last_busy_ms = clear_elapsed
@@ -95,7 +96,21 @@ class EPD42B:
         return pin.value()
 
     def delay_ms(self, delaytime):
-        utime.sleep(delaytime / 1000.0)
+        """Sleep in short slices, calling ``self.idle`` (if set) in between.
+
+        The idle hook lets the dashboard feed its watchdog heartbeat and
+        answer /metrics during the 16-24 s refresh waits.
+        """
+        remaining = int(delaytime)
+        while remaining > 0:
+            step = 100 if remaining > 100 else remaining
+            utime.sleep_ms(step)
+            remaining -= step
+            if self.idle is not None:
+                try:
+                    self.idle()
+                except Exception as exc:
+                    print("panel idle hook:", repr(exc))
 
     def spi_writebyte(self, data):
         self.spi.write(bytearray(data))
@@ -158,13 +173,17 @@ class EPD42B:
         self.digital_write(self.cs_pin, 1)
         return j
 
+    BUSY_TIMEOUT_MS = 45000
+
     def ReadBusy(self):
-        if self.flag == 1:
-            while self.digital_read(self.busy_pin) == 1:
-                self.delay_ms(100)
-        else:
-            while self.digital_read(self.busy_pin) == 0:
-                self.delay_ms(100)
+        # A stuck BUSY line (loose cable, brown-out) must not hang forever:
+        # the idle hook keeps the watchdog heartbeat alive while we wait.
+        busy_level = 1 if self.flag == 1 else 0
+        started = time.ticks_ms()
+        while self.digital_read(self.busy_pin) == busy_level:
+            if time.ticks_diff(time.ticks_ms(), started) > self.BUSY_TIMEOUT_MS:
+                raise OSError("e-paper BUSY stuck for %d ms" % self.BUSY_TIMEOUT_MS)
+            self.delay_ms(100)
 
     def TurnOnDisplay(self):
         if self.flag == 1:
@@ -323,7 +342,7 @@ class EPD42B:
         busy_elapsed = time.ticks_diff(time.ticks_ms(), busy_started)
         if busy_elapsed < 2000:
             # BUSY returned immediately; use the known waveform fallback.
-            time.sleep_ms(self.waveform_ms)
+            self.delay_ms(self.waveform_ms)
             busy_elapsed += self.waveform_ms
         finished = time.ticks_us()
 
@@ -341,7 +360,7 @@ class EPD42B:
         self.EPD_4IN2B_Clear()
         elapsed = time.ticks_diff(time.ticks_ms(), started)
         if elapsed < 2000:
-            time.sleep_ms(self.waveform_ms)
+            self.delay_ms(self.waveform_ms)
             elapsed += self.waveform_ms
         self.last_transfer_ms = 0
         self.last_busy_ms = elapsed
