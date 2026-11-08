@@ -302,31 +302,31 @@ def traces_payload(spans, now_ms, now_ticks):
 
 # ------------------------------------------------------------------ transport
 def _read_response(sock):
-    head = b""
-    while b"\r\n\r\n" not in head:
-        chunk = sock.read(256)
-        if not chunk:
-            raise OSError("connection closed")
-        head += chunk
-        if len(head) > 4096:
-            raise OSError("response header too large")
-    header, _, body = head.partition(b"\r\n\r\n")
-    lines = header.split(b"\r\n")
-    status = int(lines[0].split()[1])
+    """Read one HTTP/1.1 response without reading past it (keep-alive).
+
+    MicroPython stream ``read(n)`` blocks until all n bytes arrive, so the
+    header is read line by line and the body by exact Content-Length.
+    """
+    status_line = sock.readline()
+    if not status_line:
+        raise OSError("connection closed")
+    status = int(status_line.split()[1])
     length = 0
     close = False
-    for line in lines[1:]:
+    for _ in range(64):
+        line = sock.readline()
+        if not line or line == b"\r\n":
+            break
         lower = line.lower()
         if lower.startswith(b"content-length:"):
             length = int(line.split(b":", 1)[1])
         elif lower.startswith(b"connection:") and b"close" in lower:
             close = True
-    remaining = length - len(body)
-    while remaining > 0:
-        chunk = sock.read(min(512, remaining))
+    while length > 0:
+        chunk = sock.read(min(512, length))
         if not chunk:
             break
-        remaining -= len(chunk)
+        length -= len(chunk)
     return status, close
 
 

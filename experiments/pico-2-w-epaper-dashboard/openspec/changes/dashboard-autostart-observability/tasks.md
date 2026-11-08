@@ -21,5 +21,7 @@
 - [x] 3.1 `/metrics` (Prometheus text) and `/healthz` on :9100, served during panel waits.
 - [x] 3.2 OTLP/HTTP JSON exporter (metrics, logs, traces), CA-verified; host tests.
 - [x] 3.3 Measure TLS heap on hardware; disable OTLP by default (fragmentation, see design).
-- [ ] 3.4 Deliver the `pico-epaper-dashboard` scrape job in krysdom-api/observability; verify `up` = 1.
-- [ ] 3.5 Optional: frozen-module firmware to re-enable OTLP logs/traces.
+- [ ] 3.4 Deliver the `pico-epaper-dashboard` scrape job in krysdom-api/observability (PR #1928, checks green); verify `up` = 1 after merge.
+- [x] 3.5 Frozen-module firmware (`firmware/`): built in Docker, flashed; heap free 60 KB → 113 KB.
+- [x] 3.6 Fix the OTLP keep-alive response reader; trial run delivers metrics, logs and traces; series visible in Prometheus.
+- [ ] 3.7 Enable OTLP (deferred by the user); retire the scrape job at the same time.

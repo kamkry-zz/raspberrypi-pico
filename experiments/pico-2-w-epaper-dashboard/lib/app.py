@@ -22,6 +22,9 @@ def _boot_facts():
         "crash_count": supervisor.crash_count(),
         "firmware": os.uname().release,
         "version": config.VERSION,
+        # "1" when lib/ is compiled into the firmware (firmware/build.sh).
+        # Frozen modules report a bare name ("app.py"); files have a path.
+        "frozen": "0" if "/" in __file__ else "1",
     }
 
 

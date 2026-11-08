@@ -110,6 +110,18 @@ class TelemetryTest(unittest.TestCase):
         self.assertEqual(out[1]["status"], {"code": 2, "message": "offline"})
         self.assertEqual(out[0]["attributes"][2]["value"], {"boolValue": True})
 
+    def test_read_response_stops_at_body_end(self):
+        import io
+
+        stream = io.BytesIO(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 21\r\n\r\n"
+            b'{"partialSuccess":{}}'
+            b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 2\r\n\r\nno"
+        )
+        self.assertEqual(telemetry._read_response(stream), (200, False))
+        self.assertEqual(telemetry._read_response(stream), (400, True))
+        self.assertEqual(stream.read(), b"")
+
     def test_prometheus_names(self):
         self.assertEqual(telemetry.prom_name("pico.heap.free", "By", "gauge"), "pico_heap_free_bytes")
         self.assertEqual(telemetry.prom_name("pico.uptime", "s", "gauge"), "pico_uptime_seconds")

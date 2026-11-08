@@ -31,8 +31,16 @@ canvas planes and a 24 KB reserve did not produce a large enough block.
 Metrics are therefore scraped from `/metrics` by the cluster's
 `prometheus/apps` relay (the documented pattern for apps that cannot push
 OTLP). The OTLP exporter stays in the code, tested, behind `OTLP_ENABLED`.
-Re-enabling it needs firmware with `lib/` frozen into flash (~89 KB of heap
-back).
+Update: the board now runs firmware with `lib/` frozen into flash
+(`firmware/build.sh`), leaving ~113 KB free; a trial with OTLP enabled
+delivered metrics, logs and traces. Enabling it is deferred.
+
+### Frozen firmware
+MicroPython v1.23.0 RPI_PICO_W, built in Docker so the host needs no ARM
+toolchain. Same flash layout as stock (firmware < 1200 KB, LittleFS above),
+so flashing via `machine.bootloader()` keeps the filesystem. `sys.path` is
+`['', '.frozen', '/lib']`: frozen modules win over `/lib`, while `config`,
+`secrets`, `certs` and the `main.py` shim stay editable on the filesystem.
 
 ## Risks
 

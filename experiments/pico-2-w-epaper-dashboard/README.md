@@ -139,16 +139,39 @@ The next reset or power cycle returns to the dashboard.
 - observatory.k3s scrapes `/metrics` through the collector's `prometheus/apps`
   relay as `job="pico-epaper-dashboard"` (krysdom-api `observability/values.yaml`).
 
-### Memory (why OTLP push is off)
+### Firmware and memory
 
-The heap is ~190 KB: canvas 30 KB, modules ~89 KB even precompiled (fonts
-and tables load into RAM). A CA-verified TLS session to `https://otel.k3s`
-works with ~41 KB free on a clean heap (measured), but inside the running app
-the largest free block is ~10 KB (75 KB free in total), so the handshake fails
-with ENOMEM. `lib/telemetry.py` contains a tested OTLP/HTTP JSON exporter
-(metrics, logs, refresh traces) behind `OTLP_ENABLED = False`. Turning it on
-needs firmware with `lib/` frozen into flash. For the same reason the weather
-is fetched over plain HTTP.
+The board runs **MicroPython v1.23.0 built with `lib/` frozen into flash**
+(`firmware/manifest.py`). Frozen bytecode and the font/table constants run
+from flash, so the running app has ~113 KB of heap free instead of ~60 KB.
+`config.mpy`, `secrets.py`, `certs/` and the `main.py` shim stay on the
+filesystem, so configuration changes need only `tools/deploy.sh`; **code
+changes in `lib/` need a firmware rebuild and flash**:
+
+```sh
+firmware/build.sh      # Docker (Debian, gcc-arm-none-eabi); cache in firmware/.cache
+firmware/flash.sh      # machine.bootloader() + copy UF2, no BOOTSEL press needed
+tools/deploy.sh        # config/secrets/certs/main.py; detects the frozen firmware
+```
+
+The UF2 ends at 880 KB; the LittleFS region starts at 1200 KB and is never
+touched by flashing. Roll back to stock firmware with
+`firmware/flash.sh backups/RPI_PICO_W-20240602-v1.23.0.uf2`, then
+`tools/deploy.sh` (it then copies `lib/*.mpy` again). If the board does not
+come back, hold BOOTSEL while plugging in USB and copy a UF2 to `RPI-RP2`
+with `cp -X` (plain `cp` fails on macOS).
+
+### OTLP push (prepared, off)
+
+`lib/telemetry.py` pushes OTLP/HTTP JSON metrics, logs (Loki) and refresh
+traces (Tempo) to `https://otel.k3s`, verified against the krysdom CA
+(`certs/k3s-ca.der`), as `service.name=pico-epaper-dashboard`. On the frozen
+firmware a trial run delivered all three signals in ~1.8 s and the series
+appeared in Prometheus. It stays off (`OTLP_ENABLED = False`). To enable:
+set it to `True`, run `tools/deploy.sh`, and remove the
+`pico-epaper-dashboard` scrape job in krysdom-api so the series are not
+duplicated. Without the frozen firmware the heap fragments too much for TLS
+(largest free block ~10 KB). Weather uses plain HTTP for the same reason.
 
 ### From the host (no install)
 

@@ -89,11 +89,11 @@ HEAP_RESERVE = 24 * 1024
 # (prometheus/apps relay job).  No TLS on the Pico, so it always fits the heap.
 #
 # Optional OTLP/HTTP JSON push (metrics + logs + refresh traces) to the
-# collector, CA-verified like the other external appliances.  OFF by default:
-# measured on this board, a verified TLS session needs a ~17 KB contiguous
-# block and the heap (canvas 30 KB + ~89 KB of modules) fragments to a
-# largest free block of ~10 KB, so the handshake fails with ENOMEM.  Enable
-# only with firmware that freezes lib/ into flash (see README "Memory").
+# collector, CA-verified like the other external appliances.  Verified working
+# on the frozen-module firmware (firmware/build.sh): ~130 KB heap free, 3
+# requests in ~1.8 s.  OFF by default (deferred).  When enabling it, drop the
+# pico-epaper-dashboard scrape job in krysdom-api, or the series duplicate.
+# Source-only (non-frozen) installs do not have the heap for TLS.
 OTLP_ENABLED = False
 OTLP_HOST = "otel.k3s"
 OTLP_CA_FILE = "certs/k3s-ca.der"  # krysdom my-selfsigned-ca, DER, public

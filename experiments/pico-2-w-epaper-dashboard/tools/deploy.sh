@@ -65,10 +65,27 @@ for m in mods:  # a stale lib/x.py would shadow the new lib/x.mpy
     try: os.remove('lib/' + m + '.py')
     except OSError: pass
 "
+# With the dashboard firmware (firmware/build.sh + firmware/flash.sh) lib/ is
+# compiled into flash and wins over /lib, so only config, secrets, certs and
+# the main.py shim are copied; stale lib/*.mpy copies are removed.
+frozen=$($MP connect "$PORT" exec "
+import sys
+sys.path.append('lib')
+import app
+print('FILES' if '/' in app.__file__ else 'FROZEN')" 2>/dev/null | tr -d '\r' | tail -1)
+echo "   board firmware: $frozen"
 args=()
 while IFS= read -r f; do
+  if [ "$frozen" = FROZEN ] && [[ "$f" == lib/* ]]; then continue; fi
   args+=(fs cp "build/$f" ":$f" +)
 done < <(cd build && find . -type f ! -name main.py | sed 's|^\./||' | sort)
+if [ "$frozen" = FROZEN ]; then
+  $MP connect "$PORT" exec "
+import os
+for f in os.listdir('lib'):
+    if f.endswith('.mpy'):
+        os.remove('lib/' + f)"
+fi
 # main.py last: until it lands, the previous program still boots.
 $MP connect "$PORT" "${args[@]}" fs cp build/main.py :main.py
 

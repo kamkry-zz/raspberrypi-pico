@@ -25,7 +25,7 @@
 
 ## Hardware
 
-- Board: Raspberry Pi Pico W (RP2040), MicroPython **1.23.0** (2024-06-02).
+- Board: Raspberry Pi Pico W (RP2040), MicroPython **1.23.0**. Since 2026-11-08 it runs a custom build with the dashboard `lib/` frozen into flash (`experiments/pico-2-w-epaper-dashboard/firmware/`); stock rollback UF2 in that experiment's `backups/`. Flash with `firmware/flash.sh` (copies with `cp -X`; plain `cp` to `RPI-RP2` fails on macOS).
 - Serial port: `/dev/cu.usbmodem1101`; verify with `.venv/bin/mpremote connect list` rather than assuming it.
 - The USB descriptor `Board in FS mode` means **USB Full Speed**, not a mounted filesystem. The board exposes a CDC serial port only; there is no drag-and-drop volume unless it is rebooted into BOOTSEL mode.
 - The onboard LED is wired to `WL_GPIO0` on the CYW43439, not `GP25`. Use `machine.Pin("LED", machine.Pin.OUT)`; `Pin(25)` does not control it.
@@ -44,7 +44,7 @@
   .venv/bin/mpremote mount build run build/main.py
   ```
 
-  Source runs (`mount . run main.py`) compile ~100 KB on the board and can hit MemoryError. `lib/app.py` allocates the canvas before every other import; do not move that order without checking the heap. The heap is too small for a TLS session in the running app, so OTLP push is off (`OTLP_ENABLED`) and weather uses plain HTTP. The first boot is ~40–60 s (vendor clear + first frame).
+  Source runs (`mount . run main.py`) compile ~100 KB on the board and can hit MemoryError. `lib/app.py` allocates the canvas before every other import; do not move that order without checking the heap. Dashboard `lib/` changes need `firmware/build.sh` + `firmware/flash.sh` (frozen modules win over `/lib`); `tools/deploy.sh` then copies only config, secrets, certs and the shim. OTLP push is prepared and verified on the frozen firmware but **off by user decision** (`OTLP_ENABLED = False`); weather uses plain HTTP. The first boot is ~40–60 s (vendor clear + first frame).
 - Serial access is exclusive: never run `mpremote` commands in parallel, including from two agents or tools. A second process fails with "device may be in use by another program".
 
 ## Host tooling
