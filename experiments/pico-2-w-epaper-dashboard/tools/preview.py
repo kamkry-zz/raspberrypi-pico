@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "lib"))
+sys.path.insert(0, str(ROOT))  # config.py (map page)
 sys.path.insert(0, str(ROOT / "tools"))
 
 import fixtures  # noqa: E402
@@ -46,19 +47,53 @@ def _page(index):
 
 
 def render_weather(canvas):
-    pages.render_weather(canvas, _page(1))
+    pages.render_weather(canvas, _page(0))
+
+
+def render_weather_hub(canvas):
+    data = fixtures.hub_day()
+    data["page"] = 0
+    pages.render_weather(canvas, data)
+
+
+def render_weather_hub_night(canvas):
+    data = fixtures.hub()
+    data["page"] = 0
+    pages.render_weather(canvas, data)
+
+
+def render_weather_hub_warning(canvas):
+    data = fixtures.hub_warning()
+    data["page"] = 0
+    pages.render_weather(canvas, data)
+
+
+def render_map(canvas):
+    """Synthetic map unless MAP_BIN points at a real /v1/map.bin download."""
+    import os
+    import tempfile
+
+    import config
+
+    path = os.environ.get("MAP_BIN")
+    if not path:
+        path = fixtures.make_map_bin(os.path.join(tempfile.mkdtemp(), "map.bin"))
+    config.MAP_CACHE_FILE = path
+    data = fixtures.hub_day()
+    data["page"] = 1
+    pages.render_map(canvas, data)
 
 
 def render_network(canvas):
-    pages.render_network(canvas, _page(2))
+    pages.render_network(canvas, _page(3))
 
 
 def render_capabilities(canvas):
-    pages.render_capabilities(canvas, _page(3))
+    pages.render_capabilities(canvas, _page(4))
 
 
 def render_about(canvas):
-    pages.render_about(canvas, _page(4))
+    pages.render_about(canvas, _page(5))
 
 
 FRAMES = {
@@ -67,6 +102,10 @@ FRAMES = {
     "dashboard_rain": render_dashboard_rain,
     "dashboard_offline": render_dashboard_offline,
     "weather": render_weather,
+    "weather_hub": render_weather_hub,
+    "weather_hub_night": render_weather_hub_night,
+    "weather_hub_warning": render_weather_hub_warning,
+    "map": render_map,
     "network": render_network,
     "capabilities": render_capabilities,
     "about": render_about,

@@ -1,5 +1,6 @@
 """Dashboard pages rendered with the portable canvas."""
 
+import math
 import time
 
 import icons
@@ -9,8 +10,9 @@ from canvas import BLACK, RED, WHITE
 from font_large import FONT as LARGE
 from font_medium import FONT as MEDIUM
 from font_small import FONT as SMALL
+from font_xlarge import FONT as XLARGE
 
-PAGE_COUNT = 5
+PAGE_COUNT = 6
 
 
 def button_marker(canvas, y, glyph):
@@ -41,7 +43,7 @@ def header(canvas, title, now):
     button_markers(canvas)
 
 
-def footer(canvas, data):
+def footer(canvas, data, right="Open-Meteo", compact=False):
     canvas.fill_rect(0, 281, 400, 1, BLACK)
     now = data.get("now")
     metrics = data.get("metrics") or {}
@@ -51,15 +53,18 @@ def footer(canvas, data):
     if data.get("time_synced") and now:
         clock = T.format_clock(now)
         next_hour = (now[3] + 1) % 24
-        left = "%s %s · %s s · %s %02d:00 · %d/%d" % (
-            S.UPDATED,
-            clock,
-            T.format_decimal(total_s),
-            S.NEXT,
-            next_hour,
-            page,
-            pages,
-        )
+        if compact:
+            left = "%s %s · %s %02d:00 · %d/%d" % (S.UPDATED, clock, S.NEXT, next_hour, page, pages)
+        else:
+            left = "%s %s · %s s · %s %02d:00 · %d/%d" % (
+                S.UPDATED,
+                clock,
+                T.format_decimal(total_s),
+                S.NEXT,
+                next_hour,
+                page,
+                pages,
+            )
     else:
         left = "%s — · %s s · %d/%d" % (
             S.UPDATED,
@@ -68,7 +73,7 @@ def footer(canvas, data):
             pages,
         )
     canvas.text(10, 283, left, BLACK, SMALL)
-    canvas.text(390, 283, "Open-Meteo", BLACK, SMALL, anchor="right")
+    canvas.text(390, 283, right, BLACK, SMALL, anchor="right")
 
 
 def year_grid(canvas, now, x, y):
@@ -223,99 +228,304 @@ def render_dashboard(canvas, data):
     footer(canvas, data)
 
 
-def draw_hourly(canvas, hourly, x, y):
-    canvas.text(x, y, "GODZINOWO · 12 H", BLACK, SMALL)
-    points = (hourly or [])[:12]
-    if len(points) < 2:
+# ------------------------------------------------------------ weather page
+# Layout: design canvas "e-Paper · Pogoda" (2026-11-09), device pixels.
+ARC_CX = 221
+ARC_CY = 88
+ARC_R = 40
+
+
+def header_slim(canvas, title, now):
+    canvas.fill_rect(0, 0, 400, 20, BLACK)
+    canvas.fill_rect(0, 20, 400, 2, RED)
+    canvas.text(8, 2, title, WHITE, SMALL)
+    if now:
+        right = "%s · %s" % (T.format_date_pl(now), T.format_clock(now))
+        if (len(title) + len(right) + 2) * SMALL.advance > 384:
+            right = "%s · %s" % (T.format_date_short_pl(now), T.format_clock(now))
+        canvas.text(392, 2, right, WHITE, SMALL, anchor="right")
+    # The key markers are drawn last by each page (icons may reach x < 12).
+
+
+def _minutes(hhmm):
+    try:
+        return int(hhmm[0:2]) * 60 + int(hhmm[3:5])
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _deg(value):
+    try:
+        return "%d°" % int(math.floor(float(value) + 0.5))
+    except (TypeError, ValueError):
+        return "--"
+
+
+def big_temp(value):
+    """XL temperature: one decimal only for 0 <= t < 9.95 (width budget 66..174)."""
+    if value is None:
+        return "--"
+    if 0 <= value < 9.95:
+        return ("%.1f°" % value).replace(".", ",")
+    return _deg(value)
+
+
+def _arc_point(fraction, radius=ARC_R):
+    angle = math.pi * (1 - fraction)
+    return (
+        int(round(ARC_CX + radius * math.cos(angle))),
+        int(round(ARC_CY - radius * math.sin(angle))),
+    )
+
+
+def draw_sun_arc(canvas, sun, now):
+    canvas.hline(174, ARC_CY, 95, BLACK)
+    canvas.vline(ARC_CX, ARC_CY - ARC_R - 2, 5, BLACK)
+    for step in range(0, 181, 3):
+        x, y = _arc_point(step / 180.0)
+        canvas.pixel(x, y, BLACK)
+    rise = _minutes((sun or {}).get("sunrise"))
+    set_ = _minutes((sun or {}).get("sunset"))
+    current = now[3] * 60 + now[4] if now else None
+    title = None
+    if rise is not None and set_ is not None and current is not None and set_ > rise:
+        if rise <= current <= set_:
+            progress = (current - rise) / (set_ - rise)
+            steps = int(progress * 180)
+            for step in range(steps + 1):
+                for radius in (ARC_R - 1, ARC_R, ARC_R + 1):
+                    x, y = _arc_point(step / 180.0, radius)
+                    canvas.pixel(x, y, RED)
+            x, y = _arc_point(progress)
+            canvas.circle(x, y, 6, WHITE, fill=True)
+            canvas.circle(x, y, 4, RED, fill=True)
+            title = "%s %d%%" % (S.DAY_PROGRESS, int(progress * 100 + 0.5))
+        else:
+            for step in range(181):
+                x, y = _arc_point(step / 180.0)
+                canvas.pixel(x, y, BLACK)
+            icons.moon(canvas, ARC_CX, ARC_CY + 10, 5)
+            nxt = _minutes((sun or {}).get("next_sunrise")) or rise
+            wait = nxt - current if current < nxt else 1440 - current + nxt
+            title = "%s %d:%02d" % (S.SUNRISE_IN, wait // 60, wait % 60)
+    if title:
+        # x 218: "wschód za 13:40" (105 px) must clear the column divider at x 272
+        canvas.text(ARC_CX - 3, 26, title, BLACK, SMALL, anchor="center")
+    canvas.text(176, 92, (sun or {}).get("sunrise") or "--:--", BLACK, SMALL)
+    canvas.text(266, 92, (sun or {}).get("sunset") or "--:--", BLACK, SMALL, anchor="right")
+
+
+def draw_wind_arrow(canvas, cx, cy, from_deg, colour=BLACK):
+    """Arrow pointing where the wind blows to (meteorological 'from' + 180)."""
+    if from_deg is None:
         return
+    angle = math.radians((float(from_deg) + 180) % 360)
+    dx, dy = math.sin(angle), -math.cos(angle)
+    tip = (int(round(cx + 6 * dx)), int(round(cy + 6 * dy)))
+    tail = (int(round(cx - 6 * dx)), int(round(cy - 6 * dy)))
+    canvas.line(tail[0], tail[1], tip[0], tip[1], colour)
+    canvas.line(tail[0] + 1, tail[1], tip[0] + 1, tip[1], colour)
+    for side in (2.5, -2.5):
+        wing = angle + math.pi + side * 0.25
+        canvas.line(tip[0], tip[1], int(round(tip[0] + 4 * math.sin(wing))), int(round(tip[1] - 4 * math.cos(wing))), colour)
 
-    left = x
-    right = x + 368
-    top = y + 14
-    bottom = y + 44
-    base = y + 60
-    step = (right - left) // (len(points) - 1)
 
-    temperatures = [point.get("temp", 0) for point in points]
-    low = min(temperatures)
-    high = max(temperatures)
-    if high == low:
-        high = low + 1
+def draw_wind_blocks(canvas, blocks):
+    gusts = [b.get("gust") for b in blocks if b.get("gust") is not None]
+    caption = S.WIND_CAPTION
+    if gusts:
+        caption += " · %s %d" % (S.GUSTS_UP_TO, max(gusts))
+    canvas.text(16, 105, caption, BLACK, SMALL)
+    for index, block in enumerate(blocks[:6]):
+        x0 = 8 + 43 * index
+        cx = x0 + 21
+        label = "%s-%s" % (block.get("start", "--"), block.get("end", "--"))
+        first = bool(block.get("current"))
+        canvas.text(cx, 120, label, RED if first else BLACK, SMALL, anchor="center")
+        if first:
+            canvas.fill_rect(x0, 136, 41, 2, RED)
+        mean = block.get("mean")
+        canvas.text(cx + 2, 135, "--" if mean is None else str(mean), BLACK, MEDIUM, anchor="right")
+        draw_wind_arrow(canvas, cx + 12, 144, block.get("dir"))
 
-    for index, point in enumerate(points):
-        px = left + index * step
-        height = int(point.get("rain", 0) * 16 / 100)
-        if height > 0:
-            canvas.fill_rect(px - 2, base - height, 5, height, RED)
 
-    previous = None
-    for index, point in enumerate(points):
-        px = left + index * step
-        py = bottom - int((point.get("temp", 0) - low) * (bottom - top) / (high - low))
-        if previous:
-            canvas.line(previous[0], previous[1], px, py, BLACK)
-        canvas.fill_rect(px - 1, py - 1, 3, 3, RED)
-        previous = (px, py)
+def draw_hours(canvas, hourly):
+    for index, hour in enumerate((hourly or [])[:8]):
+        cx = 24 + 33 * index
+        canvas.text(cx, 158, hour.get("hour", ""), BLACK, SMALL, anchor="center")
+        icons.weather_icon(canvas, cx - 9, 175, 18, hour.get("code", 3), hour.get("is_day", 1))
+        canvas.text(cx, 194, _deg(hour.get("temp")), BLACK, MEDIUM, anchor="center")
+        height = 18 * min(100, max(0, hour.get("rain", 0))) // 100
+        if height:
+            canvas.fill_rect(cx - 3, 236 - height, 6, height, RED)
+    canvas.hline(14, 237, 252, BLACK)
 
-    canvas.fill_rect(left, base, right - left, 1, BLACK)
-    for index, point in enumerate(points):
-        px = left + index * step
-        canvas.text(px, base + 4, point.get("hour", ""), BLACK, SMALL, anchor="center")
+
+def _warning_lines(warning):
+    level = warning.get("level")
+    event = (warning.get("event") or "").lower()
+    line1 = "%s %s° · %s" % (S.WARNING_SHORT, level if level is not None else "?", event)
+    start = warning.get("from") or ""
+    end = warning.get("to") or ""
+    line2 = "%s.%s %s–%s" % (start[8:10], start[5:7], start[11:16], end[11:16])
+    if warning.get("probability") is not None:
+        line2 += " · %d%%" % warning["probability"]
+    return line1[:32], line2[:32]
+
+
+def draw_info_band(canvas, weather):
+    if weather.get("stale"):
+        fetched = weather.get("fetched")
+        when = "--:--"
+        if fetched:
+            local = T.local_tuple(fetched, weather.get("offset_s") or 0)
+            when = "%02d:%02d" % (local[3], local[4])
+        canvas.text(16, 246, "%s %s" % (S.STALE, when), RED, SMALL)
+    warnings = weather.get("warnings")
+    if warnings and not weather.get("stale"):
+        canvas.fill_rect(14, 242, 252, 36, RED)
+        for row in range(16):
+            half = row * 9 // 16
+            canvas.hline(26 - half, 246 + row, 2 * half + 1, WHITE)
+        canvas.fill_rect(25, 251, 2, 6, RED)
+        canvas.fill_rect(25, 259, 2, 2, RED)
+        line1, line2 = _warning_lines(warnings[0])
+        canvas.text(40, 244, line1, WHITE, SMALL)
+        canvas.text(40, 260, line2, WHITE, SMALL)
+        return
+    if not weather.get("stale"):
+        canvas.text(16, 246, S.NO_IMGW if warnings is None else S.NO_WARNINGS, BLACK, SMALL)
+    synop = weather.get("synop")
+    if synop and synop.get("temp") is not None:
+        parts = ["%s %02d UTC %s°" % (S.SYNOP, synop.get("hour_utc") or 0, T.format_decimal(synop["temp"]))]
+        if synop.get("humidity") is not None:
+            parts.append("%d%%" % int(synop["humidity"] + 0.5))
+        if synop.get("pressure") is not None:
+            parts.append("%d hPa" % int(synop["pressure"] + 0.5))
+        canvas.text(16, 262, " · ".join(parts), BLACK, SMALL)
+
+
+def draw_days(canvas, daily):
+    canvas.fill_rect(272, 26, 2, 250, RED)
+    for index, day in enumerate((daily or [])[1:5]):
+        y0 = 24 + 64 * index
+        if index:
+            for x in range(278, 396, 3):
+                canvas.pixel(x, y0, BLACK)
+        weekday = day.get("weekday")
+        name = T.weekday_short(weekday) if weekday is not None else day.get("label", "")
+        canvas.text(280, y0 + 2, name, BLACK, MEDIUM)
+        date = day.get("date") or ""
+        if len(date) >= 10:
+            canvas.text(394, y0 + 4, "%s.%s" % (date[8:10], date[5:7]), BLACK, SMALL, anchor="right")
+        icons.weather_icon(canvas, 280, y0 + 24, 26, day.get("code", 3), True)
+        canvas.text(312, y0 + 23, "%d°/%d°" % (day.get("tmax", 0), day.get("tmin", 0)), BLACK, MEDIUM)
+        rain = day.get("rain", 0)
+        text = "%d%%" % rain
+        if day.get("rain_sum"):
+            text += " %smm" % T.format_decimal(day["rain_sum"])
+        canvas.text(312, y0 + 43, text, RED if rain >= 50 else BLACK, SMALL)
 
 
 def render_weather(canvas, data):
     canvas.clear(WHITE)
-    header(canvas, S.PAGE_TITLES[1], data.get("now"))
-
+    now = data.get("now")
+    header_slim(canvas, S.PAGE_TITLES[1], now)
     weather = data.get("weather")
     if not weather:
         canvas.text(16, 60, S.NO_DATA, RED, MEDIUM)
         canvas.text(16, 92, S.OFFLINE, RED, SMALL)
-        footer(canvas, data)
+        footer(canvas, data, S.SOURCES_FALLBACK, compact=True)
+        button_markers(canvas)
         return
-
     current = weather.get("current") or {}
-    icons.weather_icon(
-        canvas, 16, 38, 48, current.get("code", 3), current.get("is_day", 1)
-    )
-    canvas.text(72, 38, T.format_temp(current.get("temp", 0)), BLACK, LARGE)
-    canvas.text(16, 92, S.WMO.get(current.get("code", 3), "?"), BLACK, SMALL)
-
-    kv(canvas, 16, 110, S.FEELS, T.format_temp(current.get("feels", 0)), 76, value_font=MEDIUM)
-    kv(canvas, 16, 130, S.HUMIDITY, "%d%%" % current.get("humidity", 0), 76, value_font=MEDIUM)
-    kv(canvas, 16, 150, S.WIND, "%d km/h" % current.get("wind", 0), 76, value_font=MEDIUM)
-    kv(
+    icons.weather_icon(canvas, 8, 30, 52, current.get("code", 3), current.get("is_day", 1))
+    canvas.text(66, 26, big_temp(current.get("temp")), BLACK, XLARGE)
+    canvas.text(66, 66, S.WMO.get(current.get("code", 3), "?"), BLACK, SMALL)
+    canvas.text(66, 83, "%s %s" % (S.FEELS_LOWER, _deg(current.get("feels"))), BLACK, SMALL)
+    draw_sun_arc(canvas, weather.get("sun"), now)
+    canvas.hline(8, 103, 258, BLACK)
+    blocks = weather.get("wind_blocks") or []
+    if blocks:
+        draw_wind_blocks(canvas, blocks)
+    else:
+        canvas.text(16, 105, "%s %s km/h" % (S.WIND, current.get("wind", 0)), BLACK, MEDIUM)
+        if current.get("gust") is not None:
+            canvas.text(16, 128, "%s %d km/h" % (S.GUSTS_UP_TO, current["gust"]), BLACK, SMALL)
+        draw_wind_arrow(canvas, 150, 115, current.get("wind_dir"))
+    canvas.hline(8, 155, 258, BLACK)
+    draw_hours(canvas, weather.get("hourly"))
+    draw_info_band(canvas, weather)
+    draw_days(canvas, weather.get("daily"))
+    footer(
         canvas,
-        16,
-        170,
-        S.PRECIP,
-        T.format_decimal(current.get("precip", 0)) + " mm",
-        76,
-        value_font=MEDIUM,
+        data,
+        S.SOURCES_HUB if weather.get("source") == "hub" else S.SOURCES_FALLBACK,
+        compact=True,
     )
+    button_markers(canvas)
 
-    canvas.text(210, 38, "PROGNOZA", BLACK, SMALL)
-    canvas.fill_rect(210, 52, 178, 1, RED)
-    for index, day in enumerate((weather.get("daily") or [])[:3]):
-        yy = 58 + index * 30
-        canvas.text(210, yy, day.get("label", ""), BLACK, SMALL)
-        icons.weather_icon(canvas, 250, yy - 4, 24, day.get("code", 3), True)
-        canvas.text(
-            280, yy, "%d/%d" % (day.get("tmax", 0), day.get("tmin", 0)), BLACK, SMALL
-        )
-        rain = day.get("rain", 0)
-        canvas.text(
-            384,
-            yy,
-            "%d%%" % rain,
-            RED if rain >= 50 else BLACK,
-            SMALL,
-            anchor="right",
-        )
 
-    canvas.fill_rect(203, 36, 2, 160, RED)
-    draw_hourly(canvas, weather.get("hourly"), 16, 198)
-    footer(canvas, data)
+# ------------------------------------------------------------ synoptic map page
+MAP_TOP = 22
+
+
+def _map_legend(canvas):
+    canvas.fill_rect(14, 234, 240, 42, WHITE)
+    canvas.rect(14, 234, 240, 42, BLACK)
+    for x in range(20, 46):
+        canvas.pixel(x, 245 + int(round(2 * math.sin((x - 20) / 4.0))), BLACK)
+    canvas.text(50, 238, S.MAP_ISOBARS, BLACK, SMALL)
+    canvas.hline(126, 247, 24, BLACK)
+    for x in (130, 140):
+        for row in range(5):
+            canvas.hline(x + row // 2, 242 + row, 5 - (row // 2) * 2, BLACK)
+    canvas.text(156, 238, S.MAP_COLD, BLACK, SMALL)
+    canvas.hline(20, 266, 26, RED)
+    for x in (26, 38):
+        canvas.circle(x, 266, 3, RED, fill=True)
+        canvas.hline(x - 3, 267, 7, WHITE)
+        canvas.hline(x - 3, 268, 7, WHITE)
+        canvas.hline(20, 266, 26, RED)
+    canvas.text(50, 258, S.MAP_WARM, BLACK, SMALL)
+    canvas.text(126, 258, S.MAP_CENTRES, BLACK, SMALL)
+
+
+def render_map(canvas, data):
+    canvas.clear(WHITE)
+    now = data.get("now")
+    header_slim(canvas, S.MAP_TITLE, now)
+    import synmap  # needs config; only the map page pays for it
+
+    meta = synmap.info()
+    if meta is None or not synmap.blit(canvas, MAP_TOP):
+        canvas.text(200, 120, S.MAP_NONE, RED, MEDIUM, anchor="center")
+        canvas.text(200, 146, S.MAP_NONE_HINT, BLACK, SMALL, anchor="center")
+    else:
+        x, y = 231, MAP_TOP + 137
+        canvas.circle(x, y, 6, RED)
+        canvas.circle(x, y, 5, RED)
+        canvas.circle(x, y, 2, RED, fill=True)
+        canvas.fill_rect(238, y - 8, 31, 15, WHITE)
+        canvas.text(239, y - 8, S.MAP_LODZ, RED, SMALL)
+        analysis = meta["analysis"]
+        utc = time.gmtime(analysis)
+        canvas.fill_rect(262, 24, 136, 34, WHITE)
+        canvas.rect(262, 24, 136, 34, BLACK)
+        canvas.text(266, 25, "%s %02d UTC" % (S.MAP_ANALYSIS, utc[3]), BLACK, SMALL)
+        line = "%02d.%02d" % (utc[2], utc[1])
+        now_epoch = data.get("now_epoch")
+        if now_epoch:
+            line += " · %d h %s" % (max(0, now_epoch - analysis) // 3600, S.MAP_AGO)
+        canvas.text(266, 41, line, RED if meta["stale"] else BLACK, SMALL)
+        _map_legend(canvas)
+    canvas.fill_rect(0, 281, 400, 1, BLACK)
+    left = "%d/%d" % (data.get("page", 0) + 1, data.get("pages", PAGE_COUNT))
+    if data.get("time_synced") and now:
+        left += " · %s %02d:00" % (S.NEXT, (now[3] + 1) % 24)
+    canvas.text(10, 283, left, BLACK, SMALL)
+    canvas.text(390, 283, S.MAP_SOURCE, BLACK, SMALL, anchor="right")
+    button_markers(canvas)
 
 
 def kv(canvas, x, y, label, value, label_width=72, colour=BLACK, value_font=SMALL):
@@ -479,9 +689,11 @@ def render_about(canvas, data):
     footer(canvas, data)
 
 
+# Pogoda is the default page (index 0, shown at boot); 2026-11-09 user decision.
 PAGES = (
-    render_dashboard,
     render_weather,
+    render_map,
+    render_dashboard,
     render_network,
     render_capabilities,
     render_about,

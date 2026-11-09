@@ -185,6 +185,15 @@ def main():
             current_weather = weather.cached()
             if current_weather is not None:
                 current_weather["stale"] = True
+        if wifi_ok:
+            # Synoptic map: streamed to flash, at most every MAP_CHECK_MINUTES,
+            # usually a 304.  Never fatal for the frame.
+            try:
+                import synmap
+
+                synmap.fetch(force=force_weather)
+            except Exception as exc:
+                telemetry.log("Map refresh error: %r" % (exc,), "WARN")
         info["http_ms"] = time.ticks_diff(time.ticks_ms(), http_started)
         supervisor.beat()
 

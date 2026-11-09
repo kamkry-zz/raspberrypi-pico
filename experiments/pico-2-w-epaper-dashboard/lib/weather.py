@@ -1,4 +1,8 @@
-"""Open-Meteo client and pure JSON parser for the dashboard."""
+"""Weather for the dashboard: pogoda-hub first, Open-Meteo as the fallback.
+
+Both sources are converted to one dict; the pogoda-hub payload adds the sun
+path, 4-hour wind blocks, IMGW warnings and the IMGW synop.
+"""
 
 import json
 import time
@@ -19,9 +23,9 @@ def _url():
     return (
         "%s?latitude=%.4f&longitude=%.4f"
         "&current=temperature_2m,relative_humidity_2m,apparent_temperature,"
-        "precipitation,weather_code,wind_speed_10m,is_day"
+        "precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day"
         "&daily=weather_code,temperature_2m_max,temperature_2m_min,"
-        "precipitation_probability_max"
+        "precipitation_probability_max,precipitation_sum,sunrise,sunset"
         "&hourly=temperature_2m,precipitation_probability,weather_code"
         "&timezone=%s&forecast_days=%d&wind_speed_unit=kmh"
         % (
@@ -56,6 +60,8 @@ def parse(payload):
         "code": int(_number(current_raw.get("weather_code"), 3)),
         "is_day": int(_number(current_raw.get("is_day"), 1)),
         "time": current_raw.get("time", ""),
+        "wind_dir": current_raw.get("wind_direction_10m"),
+        "gust": _round_or_none(current_raw.get("wind_gusts_10m")),
     }
 
     daily = []
@@ -114,7 +120,14 @@ def parse(payload):
             }
         )
 
+    sunrise = (daily_raw.get("sunrise") or [""])[0]
+    sunset = (daily_raw.get("sunset") or [""])[0]
     return {
+        "source": "open-meteo",
+        "sun": {"sunrise": sunrise[11:16] or None, "sunset": sunset[11:16] or None},
+        "wind_blocks": [],
+        "warnings": None,
+        "synop": None,
         "place": config.LOCATION_NAME,
         "offset_s": int(_number(payload.get("utc_offset_seconds"), config.UTC_OFFSET_FALLBACK_S)),
         "timezone": payload.get("timezone", config.TIMEZONE),
@@ -125,6 +138,113 @@ def parse(payload):
         "date_epoch": None,
         "stale": False,
     }
+
+
+def _round_or_none(value):
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _day_label(index, weekday):
+    if index == 0:
+        return TODAY
+    if index == 1:
+        return TOMORROW
+    return T.weekday_short(weekday or 0)
+
+
+def _offset_from_local(local_iso, utc_epoch):
+    """UTC offset (s, 15-min steps) from the hub's local ISO time and the HTTP Date."""
+    try:
+        local = T.epoch_from_utc(
+            int(local_iso[0:4]), int(local_iso[5:7]), int(local_iso[8:10]),
+            int(local_iso[11:13]), int(local_iso[14:16]), int(local_iso[17:19] or 0),
+        )
+    except (TypeError, ValueError, IndexError):
+        return None
+    if not utc_epoch:
+        return None
+    return int(round((local - utc_epoch) / 900.0)) * 900
+
+
+def parse_hub(payload, utc_epoch=None):
+    """Convert a pogoda-hub /v1/weather payload into the dashboard weather dict."""
+    cur = payload.get("current") or {}
+    current = {
+        "temp": _number(cur.get("temp")),
+        "feels": _number(cur.get("feels")),
+        "humidity": int(_number(cur.get("humidity"))),
+        "wind": int(_number(cur.get("wind"))),
+        "precip": 0.0,
+        "code": int(_number(cur.get("code"), 3)),
+        "is_day": 1 if cur.get("is_day") else 0,
+        "time": cur.get("time") or "",
+        "wind_dir": cur.get("wind_dir"),
+        "gust": cur.get("gust"),
+        "pressure": cur.get("pressure"),
+    }
+    daily = []
+    for index, day in enumerate((payload.get("daily") or [])[: config.WEATHER_DAYS]):
+        daily.append(
+            {
+                "label": _day_label(index, day.get("weekday")),
+                "date": day.get("date") or "",
+                "weekday": day.get("weekday"),
+                "code": int(_number(day.get("code"), 3)),
+                "tmax": int(round(_number(day.get("tmax")))),
+                "tmin": int(round(_number(day.get("tmin")))),
+                "rain": int(_number(day.get("rain_prob"))),
+                "rain_sum": _number(day.get("rain_sum")),
+            }
+        )
+    hourly = []
+    for hour in (payload.get("hourly") or [])[: config.WEATHER_HOURS]:
+        hourly.append(
+            {
+                "hour": hour.get("hour") or "",
+                "temp": _number(hour.get("temp")),
+                "rain": int(_number(hour.get("rain_prob"))),
+                "code": int(_number(hour.get("code"), 3)),
+                "is_day": 1 if hour.get("is_day") else 0,
+                "wind": hour.get("wind"),
+            }
+        )
+    offset = _offset_from_local(payload.get("now"), utc_epoch)
+    return {
+        "source": "hub",
+        "place": (payload.get("location") or {}).get("name") or config.LOCATION_NAME,
+        "offset_s": offset if offset is not None else config.UTC_OFFSET_FALLBACK_S,
+        "timezone": config.TIMEZONE,
+        "current": current,
+        "daily": daily,
+        "hourly": hourly,
+        "sun": payload.get("sun") or {},
+        "wind_blocks": payload.get("wind_blocks") or [],
+        "warnings": payload.get("warnings") or [],
+        "synop": payload.get("synop"),
+        "fetched": 0,
+        "date_epoch": utc_epoch,
+        "stale": bool(payload.get("stale")),
+    }
+
+
+def _fetch_hub():
+    status, headers, body = http_client.get(config.HUB_WEATHER_URL, timeout=config.HTTP_TIMEOUT_S)
+    if status != 200:
+        raise OSError("hub HTTP %d" % status)
+    date_epoch = T.parse_http_date(headers.get(b"date"))
+    return parse_hub(json.loads(body.decode()), date_epoch), date_epoch
+
+
+def _fetch_open_meteo():
+    status, headers, body = http_client.get(_url(), timeout=config.HTTP_TIMEOUT_S)
+    if status != 200:
+        raise OSError("HTTP %d" % status)
+    result = parse(json.loads(body.decode()))
+    result["date_epoch"] = T.parse_http_date(headers.get(b"date"))
+    return result, result["date_epoch"]
 
 
 def cached():
@@ -156,23 +276,22 @@ def fetch(force=True):
         return _CACHE
 
     try:
-        status, headers, body = http_client.get(
-            _url(), timeout=config.HTTP_TIMEOUT_S
-        )
-        if status != 200:
-            raise OSError("HTTP %d" % status)
-        result = parse(json.loads(body.decode()))
-        result["date_epoch"] = T.parse_http_date(headers.get(b"date"))
+        try:
+            result, date_epoch = _fetch_hub()
+        except Exception as exc:
+            telemetry.log("pogoda-hub failed (%r); using Open-Meteo" % (exc,), "WARN")
+            telemetry.inc("dashboard.weather.fetches", {"result": "hub_fail"})
+            result, date_epoch = _fetch_open_meteo()
         # time.time() is meaningless before NTP; prefer the server's Date.
-        result["fetched"] = result["date_epoch"] or int(time.time())
-        result["stale"] = False
+        result["fetched"] = date_epoch or int(time.time())
         _CACHE = result
         _CACHE_TICKS = time.ticks_ms()
         telemetry.inc("dashboard.weather.fetches", {"result": "ok"})
         store.save(config.WEATHER_CACHE_FILE, result)
         print(
-            "Weather: %.1f C, code %d, %d daily, %d hourly"
+            "Weather (%s): %.1f C, code %d, %d daily, %d hourly"
             % (
+                result["source"],
                 result["current"]["temp"],
                 result["current"]["code"],
                 len(result["daily"]),

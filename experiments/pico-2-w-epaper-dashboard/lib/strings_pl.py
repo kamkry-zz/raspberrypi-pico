@@ -170,3 +170,29 @@ ABOUT = (
     "Dokumentacja: docs/ w repozytorium",
     "Wersja: 0.1.0",
 )
+
+# --- weather page (pogoda-hub design, 2026-11-09)
+FEELS_LOWER = "odczuwalna"
+DAY_PROGRESS = "dzień"
+SUNRISE_IN = "wschód za"
+WIND_CAPTION = "WIATR śr. 4 h · km/h"
+GUSTS_UP_TO = "porywy do"
+NO_WARNINGS = "IMGW · brak ostrzeżeń dla Łodzi"
+NO_IMGW = "IMGW · brak danych (Open-Meteo)"
+WARNING_SHORT = "OSTRZ."
+SYNOP = "synop"
+STALE = "NIEAKTUALNE · dane z"
+SOURCES_HUB = "Open-Meteo · IMGW"
+SOURCES_FALLBACK = "Open-Meteo"
+# --- synoptic map page
+MAP_TITLE = "MAPA SYNOPTYCZNA"
+MAP_NONE = "Brak mapy"
+MAP_NONE_HINT = "pogoda-hub nie podał jeszcze mapy"
+MAP_ANALYSIS = "analiza"
+MAP_AGO = "temu"
+MAP_LODZ = "Łódź"
+MAP_ISOBARS = "izobary"
+MAP_COLD = "chłodny"
+MAP_WARM = "ciepły"
+MAP_CENTRES = "W wyż · N niż"
+MAP_SOURCE = "IMGW-PIB · dane przetworzone"

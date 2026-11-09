@@ -1,7 +1,7 @@
 """Show one dashboard page without using the physical buttons.
 
-Edit PAGE below (0 = dashboard, 1 = weather, 2 = network, 3 = capabilities,
-4 = about) and run:
+Edit PAGE below (0 = weather, 1 = synoptic map, 2 = dashboard, 3 = network,
+4 = capabilities, 5 = about) and run:
 
     .venv/bin/mpremote mount . run show_page.py
 
@@ -60,6 +60,7 @@ def run():
 
     data = {
         "now": clock.now(),
+        "now_epoch": clock.epoch(),
         "time_synced": clock.synced(),
         "offline": (not wifi_ok) or (current_weather is None),
         "page": PAGE,

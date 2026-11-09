@@ -92,7 +92,7 @@ On every power-up:
 
 1. Hardware watchdog armed; Wi-Fi association starts in the background.
 2. ~24 s vendor init + clear (the panel flashes).
-3. NTP (or the HTTP `Date` header), DNS PTR, Open-Meteo fetch, first frame.
+3. NTP (or the HTTP `Date` header), DNS PTR, weather fetch (pogoda-hub, Open-Meteo fallback), map check, first frame.
 4. Hourly refresh at the top of the hour; KEY0/KEY1 change pages.
 
 If the network is not up yet (typical after a power cut, when the router boots
@@ -185,13 +185,25 @@ may run out of heap; prefer `build/`.
 
 ### Pages
 
-1. **KRYSDOM** — year grid/percentage, 3-day weather, network, system.
-2. **Pogoda** — current details, 3-day forecast, 12-hour chart.
-3. **Sieć** — full DNS name and verification, IP, gateway, MAC, SSID, RSSI,
+1. **Pogoda** — the default page shown at boot (redesigned 2026-11-09, [design canvas](https://claude.ai/artifact/PfMRoe4M9om8C97cGrQJHU)) —
+   now (XL temperature, feels-like), the sun's path with today's progress,
+   mean wind in six 4-hour blocks with direction, the next 8 hours, IMGW
+   warnings for Łódź and the IMGW Łódź-station reading, and the next 4 days.
+2. **Mapa synoptyczna** — the newest IMGW-PIB analysis (00/12 UTC) reduced by
+   pogoda-hub to isobars, fronts and highs/lows, with a Łódź marker, the
+   analysis time and its age.
+3. **KRYSDOM** — year grid/percentage, 3-day weather, network, system.
+4. **Sieć** — full DNS name and verification, IP, gateway, MAC, SSID, RSSI,
    HTTP timing, reset cause, firmware.
-4. **Możliwości** — colour swatches, dither charts, fonts, geometry, refresh
+5. **Możliwości** — colour swatches, dither charts, fonts, geometry, refresh
    telemetry.
-5. **O programie** — panel facts, button legend, sources, version.
+6. **O programie** — panel facts, button legend, sources, version.
+
+Weather and map come from the krysdom-api **pogoda-hub**
+(`http://pogoda-hub.k3s/v1/weather`, `/v1/map.bin`; plain HTTP on the LAN by
+design). If the hub is down, weather falls back to Open-Meteo directly (no
+wind blocks, warnings or synop); the map keeps the last cached
+`/map.bin` (25,016 B on flash, re-downloaded only when its ETag changes).
 
 GP15 = previous, GP17 = next; any press changes the page and refreshes.
 The hourly refresh refreshes the current page.
@@ -247,7 +259,8 @@ dither chart, and the capabilities page.
 
 | | |
 | --- | --- |
-| ![Weather](docs/images/weather.png) | ![Network](docs/images/network.png) |
+| ![Weather](docs/images/weather_hub.png) | ![Synoptic map (synthetic sample)](docs/images/map.png) |
+| ![Weather, Open-Meteo fallback](docs/images/weather.png) | ![Network](docs/images/network.png) |
 | ![Capabilities](docs/images/capabilities.png) | ![About](docs/images/about.png) |
 
 ## Documentation
@@ -256,7 +269,7 @@ dither chart, and the capabilities page.
   specs, pinout, protocol, old/V2 commands, refresh behaviour, measured timings.
 - [`docs/dashboard.md`](docs/dashboard.md) — architecture, DNS discovery,
   refresh policy, pages, memory strategy, limitations.
-- [`docs/weather.md`](docs/weather.md) — Open-Meteo fields, WMO mapping,
+- [`docs/weather.md`](docs/weather.md) — pogoda-hub source and Open-Meteo fallback, WMO mapping,
   caching, time fallback, attribution.
 - [`docs/third-party.md`](docs/third-party.md) — datasheet/font/API notices.
 - [`docs/datasheets/`](docs/datasheets/) — mirrored old manual, V2 manual and

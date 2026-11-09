@@ -1,0 +1,282 @@
+{
+ "location": {
+  "name": "Łódź",
+  "lat": 51.7592,
+  "lon": 19.456
+ },
+ "now": "2026-11-09T17:12:33",
+ "current": {
+  "time": "2026-11-09T17:00",
+  "temp": 5.0,
+  "feels": 1.4,
+  "code": 0,
+  "is_day": false,
+  "wind": 11,
+  "wind_dir": 138,
+  "gust": 18,
+  "humidity": 76,
+  "pressure": 1023
+ },
+ "sun": {
+  "sunrise": "06:50",
+  "sunset": "16:00",
+  "day_length_min": 550,
+  "progress": null,
+  "is_day": false,
+  "next_sunrise": "06:52",
+  "minutes_to_sunrise": 819
+ },
+ "hourly": [
+  {
+   "hour": "18",
+   "temp": 4.2,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 11
+  },
+  {
+   "hour": "19",
+   "temp": 3.8,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 11
+  },
+  {
+   "hour": "20",
+   "temp": 3.3,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 11
+  },
+  {
+   "hour": "21",
+   "temp": 3.0,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 10
+  },
+  {
+   "hour": "22",
+   "temp": 2.6,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 10
+  },
+  {
+   "hour": "23",
+   "temp": 2.2,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 11
+  },
+  {
+   "hour": "00",
+   "temp": 2.0,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 11
+  },
+  {
+   "hour": "01",
+   "temp": 2.0,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 11
+  },
+  {
+   "hour": "02",
+   "temp": 1.9,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 13
+  },
+  {
+   "hour": "03",
+   "temp": 1.6,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 13
+  },
+  {
+   "hour": "04",
+   "temp": 1.6,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 13
+  },
+  {
+   "hour": "05",
+   "temp": 1.6,
+   "code": 0,
+   "is_day": false,
+   "rain_prob": 0,
+   "wind": 13
+  }
+ ],
+ "wind_blocks": [
+  {
+   "start": "16",
+   "end": "20",
+   "date": "2026-11-09",
+   "mean": 11,
+   "dir": 142,
+   "gust": 20,
+   "hours": 4,
+   "current": true
+  },
+  {
+   "start": "20",
+   "end": "24",
+   "date": "2026-11-09",
+   "mean": 11,
+   "dir": 148,
+   "gust": 20,
+   "hours": 4,
+   "current": false
+  },
+  {
+   "start": "00",
+   "end": "04",
+   "date": "2026-11-10",
+   "mean": 12,
+   "dir": 143,
+   "gust": 22,
+   "hours": 4,
+   "current": false
+  },
+  {
+   "start": "04",
+   "end": "08",
+   "date": "2026-11-10",
+   "mean": 13,
+   "dir": 135,
+   "gust": 23,
+   "hours": 4,
+   "current": false
+  },
+  {
+   "start": "08",
+   "end": "12",
+   "date": "2026-11-10",
+   "mean": 12,
+   "dir": 137,
+   "gust": 25,
+   "hours": 4,
+   "current": false
+  },
+  {
+   "start": "12",
+   "end": "16",
+   "date": "2026-11-10",
+   "mean": 11,
+   "dir": 180,
+   "gust": 25,
+   "hours": 4,
+   "current": false
+  }
+ ],
+ "daily": [
+  {
+   "date": "2026-11-09",
+   "weekday": 0,
+   "code": 0,
+   "tmax": 6.6,
+   "tmin": 0.3,
+   "rain_prob": 0,
+   "rain_sum": 0.0,
+   "sunrise": "06:50",
+   "sunset": "16:00"
+  },
+  {
+   "date": "2026-11-10",
+   "weekday": 1,
+   "code": 71,
+   "tmax": 2.8,
+   "tmin": 0.8,
+   "rain_prob": 100,
+   "rain_sum": 8.0,
+   "sunrise": "06:52",
+   "sunset": "15:59"
+  },
+  {
+   "date": "2026-11-11",
+   "weekday": 2,
+   "code": 53,
+   "tmax": 4.1,
+   "tmin": 0.9,
+   "rain_prob": 46,
+   "rain_sum": 1.1,
+   "sunrise": "06:54",
+   "sunset": "15:57"
+  },
+  {
+   "date": "2026-11-12",
+   "weekday": 3,
+   "code": 51,
+   "tmax": 7.4,
+   "tmin": 1.8,
+   "rain_prob": 38,
+   "rain_sum": 0.2,
+   "sunrise": "06:55",
+   "sunset": "15:56"
+  },
+  {
+   "date": "2026-11-13",
+   "weekday": 4,
+   "code": 51,
+   "tmax": 6.2,
+   "tmin": 0.9,
+   "rain_prob": 62,
+   "rain_sum": 0.6,
+   "sunrise": "06:57",
+   "sunset": "15:54"
+  }
+ ],
+ "warnings": [],
+ "synop": {
+  "station": "Łódź",
+  "station_id": "12465",
+  "date": "2026-11-09",
+  "hour_utc": 15,
+  "temp": 5.1,
+  "humidity": 75.7,
+  "pressure": 1023.2,
+  "wind_ms": 2.0,
+  "wind_kmh": 7,
+  "wind_dir": 100.0,
+  "precip": 0.0
+ },
+ "attribution": {
+  "open_meteo": "Weather data by Open-Meteo.com (CC BY 4.0)",
+  "imgw": "Źródło: IMGW-PIB; dane przetworzone"
+ },
+ "stale": false,
+ "sources": {
+  "forecast": {
+   "age_s": 597,
+   "stale": false,
+   "error": null
+  },
+  "warnings": {
+   "age_s": 597,
+   "stale": false,
+   "error": null
+  },
+  "synop": {
+   "age_s": 897,
+   "stale": false,
+   "error": null
+  }
+ }
+}

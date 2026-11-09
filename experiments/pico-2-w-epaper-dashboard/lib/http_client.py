@@ -145,6 +145,75 @@ def _request(scheme, host, port, path, timeout, max_bytes):
         gc.collect()
 
 
+def get_to_file(url, path, etag=None, timeout=12, max_bytes=32768):
+    """Plain-HTTP GET streamed to ``path`` in 1 KB chunks (no large heap block).
+
+    Sends ``If-None-Match`` when ``etag`` is given.  Returns (status, etag):
+    200 = new body written to ``path``; 304 = unchanged, ``path`` untouched.
+    Only ``http://`` is supported (the LAN pogoda-hub device API).
+    """
+    scheme, host, port, req_path = _parse_url(url)
+    if scheme != "http":
+        raise ValueError("get_to_file supports http:// only")
+    gc.collect()
+    address = socket.getaddrinfo(host, port)[0][-1]
+    sock = socket.socket()
+    sock.settimeout(timeout)
+    try:
+        sock.connect(address)
+        extra = "If-None-Match: %s\r\n" % etag if etag else ""
+        sock.send(
+            (
+                "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: %s\r\n%sConnection: close\r\n\r\n"
+                % (req_path, host, config.USER_AGENT, extra)
+            ).encode()
+        )
+        data = bytearray()
+        while b"\r\n\r\n" not in data:
+            chunk = sock.recv(512)
+            if not chunk:
+                break
+            data += chunk
+            if len(data) > 8192:
+                raise OSError("header too large")
+        head, _, rest = bytes(data).partition(b"\r\n\r\n")
+        lines = head.split(b"\r\n")
+        status = int(lines[0].split()[1]) if lines and len(lines[0].split()) >= 2 else 0
+        new_etag = None
+        length = None
+        for line in lines[1:]:
+            key, _, value = line.partition(b":")
+            key = key.strip().lower()
+            if key == b"etag":
+                new_etag = value.strip().decode()
+            elif key == b"content-length":
+                length = int(value.strip())
+        if status != 200:
+            return status, new_etag or etag
+        if length is None or length > max_bytes:
+            raise OSError("bad content-length %r" % (length,))
+        written = 0
+        with open(path, "wb") as handle:
+            if rest:
+                handle.write(rest)
+                written = len(rest)
+            while written < length:
+                chunk = sock.recv(min(1024, length - written))
+                if not chunk:
+                    break
+                handle.write(chunk)
+                written += len(chunk)
+        if written != length:
+            raise OSError("short body %d/%d" % (written, length))
+        return status, new_etag
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
+        gc.collect()
+
+
 def get(url, timeout=12, max_bytes=24000):
     scheme, host, port, path = _parse_url(url)
     gc.collect()

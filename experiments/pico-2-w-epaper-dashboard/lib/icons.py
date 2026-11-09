@@ -15,8 +15,9 @@ def sun(canvas, cx, cy, radius, colour=RED):
 
 
 def moon(canvas, cx, cy, radius, colour=BLACK):
+    # The cut is at least 2 px off-centre so small moons keep a visible crescent.
     canvas.circle(cx, cy, radius, colour, fill=True)
-    canvas.circle(cx + radius // 3, cy - radius // 4, radius, WHITE, fill=True)
+    canvas.circle(cx + max(2, radius * 2 // 5), cy - radius // 4, radius, WHITE, fill=True)
 
 
 def cloud(canvas, x, y, size, colour=BLACK):
@@ -65,7 +66,7 @@ def weather_icon(canvas, x, y, size, code, is_day=True):
         if is_day:
             sun(canvas, x + size // 2, y + size // 2, size // 4)
         else:
-            moon(canvas, x + size // 2, y + size // 2, size // 4)
+            moon(canvas, x + size // 2, y + size // 2, max(5, size // 4))
     elif code in (1, 2):
         if is_day:
             sun(canvas, x + size // 3, y + size // 3, max(3, size // 6))

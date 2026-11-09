@@ -44,7 +44,7 @@
   .venv/bin/mpremote mount build run build/main.py
   ```
 
-  Source runs (`mount . run main.py`) compile ~100 KB on the board and can hit MemoryError. `lib/app.py` allocates the canvas before every other import; do not move that order without checking the heap. Dashboard `lib/` changes need `firmware/build.sh` + `firmware/flash.sh` (frozen modules win over `/lib`); `tools/deploy.sh` then copies only config, secrets, certs and the shim. OTLP push is prepared and verified on the frozen firmware but **off by user decision** (`OTLP_ENABLED = False`); weather uses plain HTTP. The first boot is ~40–60 s (vendor clear + first frame).
+  Source runs (`mount . run main.py`) compile ~100 KB on the board and can hit MemoryError. `lib/app.py` allocates the canvas before every other import; do not move that order without checking the heap. Dashboard `lib/` changes need `firmware/build.sh` + `firmware/flash.sh` (frozen modules win over `/lib`); `tools/deploy.sh` then copies only config, secrets, certs and the shim. OTLP push is prepared and verified on the frozen firmware but **off by user decision** (`OTLP_ENABLED = False`); weather and the IMGW synoptic map come from the krysdom-api `pogoda-hub` over plain HTTP on the LAN (`http://pogoda-hub.k3s/v1/…`; Open-Meteo is the weather fallback; the map is cached as `/map.bin` on flash). The first boot is ~40–60 s (vendor clear + first frame).
 - Serial access is exclusive: never run `mpremote` commands in parallel, including from two agents or tools. A second process fails with "device may be in use by another program".
 
 ## Host tooling

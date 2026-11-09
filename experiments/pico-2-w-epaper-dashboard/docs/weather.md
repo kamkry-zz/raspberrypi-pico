@@ -1,6 +1,16 @@
 # Weather data
 
-Source: [Open-Meteo](https://open-meteo.com/), free non-commercial API, no key.
+Primary source (since 2026-11-09): the krysdom-api **pogoda-hub**,
+`http://pogoda-hub.k3s/v1/weather` (≈3 KB JSON, already reduced: current,
+sun, next 12 h, six 4-hour wind blocks, 5 days, IMGW warnings for TERYT
+1061, IMGW synop 12465, `now` in local time). `weather.parse_hub` maps it onto
+the dashboard dict; the UTC offset comes from the payload's local `now` and
+the HTTP `Date` header. The synoptic map is `/v1/map.bin` (see `lib/synmap.py`).
+Hub contract and map format: krysdom-api
+`openspec/changes/archive/2026-11-09-pogoda-hub/design.md`.
+
+Fallback source (hub unreachable): [Open-Meteo](https://open-meteo.com/),
+free non-commercial API, no key — the request below.
 
 ## Request
 

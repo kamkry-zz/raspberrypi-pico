@@ -133,3 +133,80 @@ def stale():
     data["weather"]["stale"] = True
     data["offline"] = True
     return data
+
+
+# --- pogoda-hub fixtures (weather page redesign, 2026-11-09) ---------------
+import json as _json
+import struct as _struct
+from pathlib import Path as _Path
+
+_HUB_SAMPLE = _Path(__file__).resolve().parent / "hub_weather_sample.json"
+# 2026-11-09 17:12 local (CET, UTC+1) = 16:12 UTC, the sample's fetch time.
+_HUB_EPOCH = T.epoch_from_utc(2026, 11, 9, 16, 12, 33)
+
+
+def hub(hour=17, minute=12):
+    """A real pogoda-hub payload (tools/hub_weather_sample.json) through parse_hub."""
+    import weather
+
+    payload = _json.loads(_HUB_SAMPLE.read_text(encoding="utf-8"))
+    epoch = T.epoch_from_utc(2026, 11, 9, hour - 1, minute, 0)
+    data = _base(hour, minute)
+    data["now"] = T.local_tuple(epoch, 3600)
+    data["now_epoch"] = epoch
+    parsed = weather.parse_hub(payload, _HUB_EPOCH)
+    parsed["fetched"] = _HUB_EPOCH
+    data["weather"] = parsed
+    return data
+
+
+def hub_day():
+    """Same payload at 13:00 so the sun is on the arc."""
+    return hub(13, 0)
+
+
+def hub_warning():
+    data = hub_day()
+    data["weather"]["warnings"] = [
+        {
+            "event": "Opady marznące",
+            "level": 1,
+            "probability": 80,
+            "from": "2026-11-10 05:00:00",
+            "to": "2026-11-10 09:00:00",
+            "text": "Słabe opady marznącego deszczu.",
+        }
+    ]
+    return data
+
+
+def hub_stale():
+    data = hub_day()
+    data["weather"]["stale"] = True
+    return data
+
+
+def make_map_bin(path, analysis=None, stale=False):
+    """Write a synthetic PHM1 map (isobar-like curve, a front and a box)."""
+    width, height = 400, 250
+    stride = width // 8
+    black = bytearray(b"\xff" * stride * height)
+    red = bytearray(b"\xff" * stride * height)
+
+    def ink(plane, x, y):
+        if 0 <= x < width and 0 <= y < height:
+            plane[y * stride + (x >> 3)] &= ~(0x80 >> (x & 7)) & 0xFF
+
+    import math
+
+    for x in range(width):
+        ink(black, x, int(125 + 60 * math.sin(x / 50.0)))
+        ink(red, x, int(60 + 20 * math.cos(x / 35.0)))
+    for x in range(100, 160):
+        ink(black, x, 200)
+        ink(black, x, 230)
+    if analysis is None:
+        analysis = T.epoch_from_utc(2026, 11, 9, 0, 0, 0)
+    head = _struct.pack(">4sHHIHH", b"PHM1", width, height, analysis, 1 if stale else 0, 0)
+    _Path(path).write_bytes(head + bytes(black) + bytes(red))
+    return path

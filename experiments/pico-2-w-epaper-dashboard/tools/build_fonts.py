@@ -27,12 +27,15 @@ CHARS = (
 # The large font is only used for numbers, temperatures and 400x300.
 # Keeping it a subset saves roughly 20 KB of module/heap on the Pico.
 CHARS_LARGE = " 0123456789,%-°C×"
+# Weather page temperature only (24x40 cells): digits, comma, minus, degree.
+CHARS_XLARGE = " 0123456789,-°"
 
 # name, ttf, pixel size, threshold, characters
 SPECS = [
     ("small", "IBMPlexMono-Regular.ttf", 11, 80, CHARS),
     ("medium", "IBMPlexMono-SemiBold.ttf", 14, 128, CHARS),
     ("large", "IBMPlexMono-SemiBold.ttf", 24, 128, CHARS_LARGE),
+    ("xlarge", "IBMPlexMono-SemiBold.ttf", 40, 128, CHARS_XLARGE),
 ]
 
 

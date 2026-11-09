@@ -22,11 +22,19 @@ TIMEZONE = "Europe/Warsaw"
 UTC_OFFSET_FALLBACK_S = 3600
 
 # --- Weather ---------------------------------------------------------------
-WEATHER_DAYS = 3
+WEATHER_DAYS = 5
 WEATHER_HOURS = 12
 # Plain HTTP: a second TLS session does not fit the heap next to the OTLP
 # export (see README "Memory"); the forecast is public data.
 WEATHER_URL = "http://api.open-meteo.com/v1/forecast"
+# Primary source: the krysdom-api pogoda-hub (LAN). Its /v1 device API is
+# plain HTTP on purpose (no TLS heap); Open-Meteo above is the fallback.
+HUB_WEATHER_URL = "http://pogoda-hub.k3s/v1/weather"
+HUB_MAP_URL = "http://pogoda-hub.k3s/v1/map.bin"
+# IMGW synoptic map (400x250 panel planes, ~25 KB) cached on flash.
+MAP_CACHE_FILE = "/map.bin"
+MAP_META_FILE = "/map.json"
+MAP_CHECK_MINUTES = 30
 HTTP_TIMEOUT_S = 12
 
 # --- Refresh policy --------------------------------------------------------
@@ -58,7 +66,7 @@ PIN_KEY_NEXT = 17
 # --- Behaviour -------------------------------------------------------------
 BUTTON_DEBOUNCE_MS = 300
 BUTTON_LONG_PRESS_MS = 1200
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 USER_AGENT = "pico-epaper-dashboard/" + VERSION
 
 # --- Resilience (auto-start, power loss, network outages) --------------------
