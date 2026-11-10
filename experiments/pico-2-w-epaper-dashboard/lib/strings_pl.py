@@ -173,7 +173,7 @@ ABOUT = (
 
 # --- weather page (pogoda-hub design, 2026-11-09)
 FEELS_LOWER = "odczuwalna"
-DAY_PROGRESS = "dzień"
+DAY_LENGTH = "dzień"
 SUNRISE_IN = "wschód za"
 WIND_CAPTION = "WIATR śr. 4 h · km/h"
 GUSTS_UP_TO = "porywy do"
