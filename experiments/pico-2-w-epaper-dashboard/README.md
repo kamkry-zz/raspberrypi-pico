@@ -186,12 +186,19 @@ may run out of heap; prefer `build/`.
 ### Pages
 
 1. **Pogoda** — the default page shown at boot (redesigned 2026-11-09, [design canvas](https://claude.ai/artifact/PfMRoe4M9om8C97cGrQJHU)) —
-   now (XL temperature, feels-like), the sun's path with today's progress,
-   mean wind in six 4-hour blocks with direction, the next 8 hours, IMGW
+   now (XL temperature, feels-like), the sun's path with today's progress
+   (title: day length `dzień 9h07`, or `wschód za 13h40` at night; inside the
+   arc the zenith `▲11:25` and, from pogoda-hub, the forecast sunshine in red
+   `☀3h40` — durations are written `9h07` so they never read as clock times),
+   mean wind in six 4-hour blocks with filled-head direction arrows, the next 8 hours, IMGW
    warnings for Łódź and the IMGW Łódź-station reading, and the next 4 days.
 2. **Mapa synoptyczna** — the newest IMGW-PIB analysis (00/12 UTC) reduced by
    pogoda-hub to isobars, fronts and highs/lows, with a Łódź marker, the
-   analysis time and its age.
+   analysis time and its age. Since pogoda-hub 0.1.3 (D51) the hub also draws
+   the geography into the black plane as light patterns (coast dotted, borders
+   dashed, major rivers sparse dots, mountain ranges stippled) so the solid
+   isobars stay dominant; no firmware change (`POGODA_MAP_BASEMAP=false` on the
+   hub restores the plain map).
 3. **KRYSDOM** — year grid/percentage, 3-day weather, network, system.
 4. **Sieć** — full DNS name and verification, IP, gateway, MAC, SSID, RSSI,
    HTTP timing, reset cause, firmware.

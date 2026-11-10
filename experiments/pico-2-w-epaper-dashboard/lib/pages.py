@@ -6,7 +6,7 @@ import time
 import icons
 import strings_pl as S
 import timeutil as T
-from canvas import BLACK, RED, WHITE
+from canvas import BLACK, RED, WHITE, text_width
 from font_large import FONT as LARGE
 from font_medium import FONT as MEDIUM
 from font_small import FONT as SMALL
@@ -278,17 +278,36 @@ def _arc_point(fraction, radius=ARC_R):
     )
 
 
+def _dur(minutes):
+    """A duration that cannot be read as a clock time: 9h07."""
+    return "%dh%02d" % (minutes // 60, minutes % 60)
+
+
+def _caret(canvas, x, y, colour):
+    """5x3 up-pointing caret: the sun's highest point."""
+    for row in range(3):
+        canvas.hline(x + 2 - row, y + row, 1 + 2 * row, colour)
+
+
+def _sun_glyph(canvas, cx, cy, colour):
+    canvas.circle(cx, cy, 2, colour, fill=True)
+    for dx, dy in ((0, -5), (0, 5), (-5, 0), (5, 0), (-4, -4), (4, 4), (-4, 4), (4, -4)):
+        canvas.pixel(cx + dx, cy + dy, colour)
+
+
 def draw_sun_arc(canvas, sun, now):
+    sun = sun or {}
     canvas.hline(174, ARC_CY, 95, BLACK)
     canvas.vline(ARC_CX, ARC_CY - ARC_R - 2, 5, BLACK)
     for step in range(0, 181, 3):
         x, y = _arc_point(step / 180.0)
         canvas.pixel(x, y, BLACK)
-    rise = _minutes((sun or {}).get("sunrise"))
-    set_ = _minutes((sun or {}).get("sunset"))
+    rise = _minutes(sun.get("sunrise"))
+    set_ = _minutes(sun.get("sunset"))
     current = now[3] * 60 + now[4] if now else None
     title = None
-    if rise is not None and set_ is not None and current is not None and set_ > rise:
+    valid = rise is not None and set_ is not None and set_ > rise
+    if valid and current is not None:
         if rise <= current <= set_:
             progress = (current - rise) / (set_ - rise)
             steps = int(progress * 180)
@@ -299,35 +318,67 @@ def draw_sun_arc(canvas, sun, now):
             x, y = _arc_point(progress)
             canvas.circle(x, y, 6, WHITE, fill=True)
             canvas.circle(x, y, 4, RED, fill=True)
-            title = "%s %d%%" % (S.DAY_PROGRESS, int(progress * 100 + 0.5))
+            title = "%s %s" % (S.DAY_LENGTH, _dur(set_ - rise))
         else:
             for step in range(181):
                 x, y = _arc_point(step / 180.0)
                 canvas.pixel(x, y, BLACK)
             icons.moon(canvas, ARC_CX, ARC_CY + 10, 5)
-            nxt = _minutes((sun or {}).get("next_sunrise")) or rise
+            nxt = _minutes(sun.get("next_sunrise")) or rise
             wait = nxt - current if current < nxt else 1440 - current + nxt
-            title = "%s %d:%02d" % (S.SUNRISE_IN, wait // 60, wait % 60)
+            title = "%s %s" % (S.SUNRISE_IN, _dur(wait))
     if title:
-        # x 218: "wschód za 13:40" (105 px) must clear the column divider at x 272
+        # x 218: "wschód za 13h40" (105 px) must clear the column divider at x 272
         canvas.text(ARC_CX - 3, 26, title, BLACK, SMALL, anchor="center")
-    canvas.text(176, 92, (sun or {}).get("sunrise") or "--:--", BLACK, SMALL)
-    canvas.text(266, 92, (sun or {}).get("sunset") or "--:--", BLACK, SMALL, anchor="right")
+    if valid:
+        # D51: the zenith (midpoint of sunrise and sunset) under the top tick,
+        # the forecast sunshine below it; never a day length in the middle.
+        zenith = rise + (set_ - rise) // 2
+        label = "%d:%02d" % (zenith // 60, zenith % 60)
+        width = text_width(label, SMALL)
+        x0 = ARC_CX - (width + 7) // 2
+        _caret(canvas, x0, ARC_CY - ARC_R + 11, BLACK)
+        canvas.text(x0 + 7, ARC_CY - ARC_R + 5, label, BLACK, SMALL)
+        sunshine = sun.get("sunshine_min")
+        if isinstance(sunshine, int):
+            label = _dur(sunshine)
+            width = text_width(label, SMALL)
+            x0 = ARC_CX - (width + 12) // 2
+            _sun_glyph(canvas, x0 + 5, ARC_CY - ARC_R + 29, RED)
+            canvas.text(x0 + 12, ARC_CY - ARC_R + 22, label, RED, SMALL)
+    canvas.text(176, 92, sun.get("sunrise") or "--:--", BLACK, SMALL)
+    canvas.text(266, 92, sun.get("sunset") or "--:--", BLACK, SMALL, anchor="right")
 
 
 def draw_wind_arrow(canvas, cx, cy, from_deg, colour=BLACK):
-    """Arrow pointing where the wind blows to (meteorological 'from' + 180)."""
+    """Arrow pointing where the wind blows to (meteorological 'from' + 180).
+
+    D51: a filled head so the direction reads at a glance.
+    """
     if from_deg is None:
         return
     angle = math.radians((float(from_deg) + 180) % 360)
     dx, dy = math.sin(angle), -math.cos(angle)
-    tip = (int(round(cx + 6 * dx)), int(round(cy + 6 * dy)))
-    tail = (int(round(cx - 6 * dx)), int(round(cy - 6 * dy)))
-    canvas.line(tail[0], tail[1], tip[0], tip[1], colour)
-    canvas.line(tail[0] + 1, tail[1], tip[0] + 1, tip[1], colour)
-    for side in (2.5, -2.5):
-        wing = angle + math.pi + side * 0.25
-        canvas.line(tip[0], tip[1], int(round(tip[0] + 4 * math.sin(wing))), int(round(tip[1] - 4 * math.cos(wing))), colour)
+    px, py = -dy, dx
+    tip = (cx + 7 * dx, cy + 7 * dy)
+    base = (cx + 1 * dx, cy + 1 * dy)
+    tail = (int(round(cx - 7 * dx)), int(round(cy - 7 * dy)))
+    canvas.line(tail[0], tail[1], int(round(base[0])), int(round(base[1])), colour)
+    canvas.line(tail[0] + int(round(px)), tail[1] + int(round(py)),
+                int(round(base[0] + px)), int(round(base[1] + py)), colour)
+    a = (base[0] + 4.5 * px, base[1] + 4.5 * py)
+    b = (base[0] - 4.5 * px, base[1] - 4.5 * py)
+    for y in range(int(min(tip[1], a[1], b[1])) - 1, int(max(tip[1], a[1], b[1])) + 2):
+        for x in range(int(min(tip[0], a[0], b[0])) - 1, int(max(tip[0], a[0], b[0])) + 2):
+            if _inside(x + 0.5, y + 0.5, tip, a, b):
+                canvas.pixel(x, y, colour)
+
+
+def _inside(u, v, a, b, c):
+    def side(p, q):
+        return (u - q[0]) * (p[1] - q[1]) - (p[0] - q[0]) * (v - q[1])
+    d1, d2, d3 = side(a, b), side(b, c), side(c, a)
+    return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
 
 
 def draw_wind_blocks(canvas, blocks):
