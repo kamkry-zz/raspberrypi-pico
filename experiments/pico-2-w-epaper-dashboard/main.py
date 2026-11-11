@@ -21,6 +21,15 @@ import sys
 
 sys.path.append("lib")
 
-import app  # noqa: E402  (lib/app.mpy on the board)
+# Pick the code for this boot: an OTA slot (/ota/a|b) or the frozen factory
+# image. otaboot is frozen and never shipped over the air; it never raises.
+try:
+    import otaboot  # noqa: E402
+
+    otaboot.select()
+except ImportError:
+    pass
+
+import app  # noqa: E402  (OTA slot, frozen firmware or lib/app.mpy)
 
 app.boot()
