@@ -1,6 +1,6 @@
 """Boot supervisor: hardware watchdog, maintenance mode and crash backoff.
 
-The RP2040 watchdog tops out at ~8.3 s and cannot be stopped once armed, but
+The RP2040/RP2350 watchdog (as MicroPython exposes it) tops out at ~8.3 s and cannot be stopped once armed, but
 a full e-paper refresh blocks for 16-24 s.  The hardware WDT is therefore fed
 from a soft ``machine.Timer`` callback, but only while the application keeps
 calling :func:`beat`.  Soft timer callbacks run from the MicroPython scheduler
@@ -30,12 +30,17 @@ FLAG = "/maint"
 WDT_TIMEOUT_MS = 8000
 FEED_PERIOD_MS = 1000
 
-# WATCHDOG_SCRATCH0 survives watchdog and machine.reset() resets but is
-# cleared by a power-on reset.  Scratch 4-7 are used by the boot ROM.
-_SCRATCH0 = 0x40058000 + 0x0C
-_SCRATCH1 = 0x40058000 + 0x10
+# WATCHDOG_SCRATCH0/1 survive watchdog and machine.reset() resets but are
+# cleared by a power-on reset.  The boot ROM uses scratch 4-7 (RP2040) and
+# 2-7 (RP2350).  The watchdog block moved: 0x40058000 on the RP2040 is the USB
+# PLL on the RP2350, so writing the RP2040 address there kills USB.
+import sys
+
+_WATCHDOG = 0x400D8000 if "RP2350" in sys.implementation._machine else 0x40058000
+_SCRATCH0 = _WATCHDOG + 0x0C
+_SCRATCH1 = _WATCHDOG + 0x10
 _MAGIC = 0x5A5A0000
-# machine.reset() on the RP2040 goes through the watchdog, so a deliberate
+# machine.reset() on the RP2040/RP2350 goes through the watchdog, so a deliberate
 # reset reads as WDT.  Tag deliberate resets so a real WDT trip stands out.
 _TAGS = ("", "CRASH", "MAINT", "WIFI", "DEPLOY", "MEM")
 boot_tag = None  # tag of the reset that started this boot, if deliberate

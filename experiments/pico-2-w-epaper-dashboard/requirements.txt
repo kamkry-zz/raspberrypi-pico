@@ -1,3 +1,4 @@
 mpremote==1.29.0
-# Must match the board firmware (MicroPython 1.23.0) for .mpy compatibility.
-mpy-cross==1.23.0
+# Must match the board firmware (MicroPython 1.29.0 on the Pico 2 W) for .mpy
+# compatibility; tools/build.py checks it.
+mpy-cross==1.29.0.post2

@@ -37,7 +37,7 @@ META = {
     "pico.heap.used": ("By", "gauge", "Allocated MicroPython heap after gc"),
     "pico.flash.used": ("By", "gauge", "Used LittleFS bytes"),
     "pico.flash.total": ("By", "gauge", "LittleFS size"),
-    "pico.cpu.temperature": ("Cel", "gauge", "RP2040 die temperature"),
+    "pico.cpu.temperature": ("Cel", "gauge", "RP2040/RP2350 die temperature"),
     "pico.cpu.active": ("1", "gauge", "Share of wall time spent busy (fetch, render, panel)"),
     "pico.cpu.frequency": ("Hz", "gauge", "CPU clock"),
     "pico.wifi.connected": ("1", "gauge", "1 while associated with the WLAN"),

@@ -159,7 +159,7 @@ NO_GREY = "Brak szarości: 3 kolory + dithering"
 SPEC = "spec 15 s"
 
 ABOUT = (
-    "Pico W + Pico-ePaper-4.2-B",
+    "Pico 2 W + Pico-ePaper-4.2-B",
     "400×300 · czarny / biały / czerwony",
     "Sterownik: stara rewizja (0x2F = 0xFF)",
     "Odświeżanie: co godzinę + przyciski",

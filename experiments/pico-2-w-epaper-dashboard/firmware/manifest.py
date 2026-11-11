@@ -1,4 +1,5 @@
-# Freeze manifest: MicroPython v1.23.0 for RPI_PICO_W plus the dashboard's
+# Freeze manifest: the board's stock manifest (RPI_PICO2_W on v1.29.0, or
+# RPI_PICO_W on v1.23.0; see build.sh) plus the dashboard's
 # lib/ modules compiled into flash.  Frozen bytecode and its constants (fonts,
 # tables) are executed from flash, giving back ~89 KB of GC heap.
 #
@@ -6,7 +7,7 @@
 # configuration can change without a reflash.  sys.path is
 # ['', '.frozen', '/lib'], so frozen modules win over /lib copies.
 
-include("$(PORT_DIR)/boards/RPI_PICO_W/manifest.py")
+include("$(BOARD_DIR)/manifest.py")
 
 for name in (
     "app",

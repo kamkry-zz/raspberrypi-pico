@@ -29,7 +29,7 @@ def _boot_facts():
 
 
 def main():
-    print("Pico W e-paper dashboard", config.VERSION)
+    print("Pico e-paper dashboard", config.VERSION)
     # Allocate the two contiguous 15 KB canvas planes FIRST: compiling the
     # other modules, the panel clear and the network stack fragment the heap.
     gc.collect()
@@ -134,7 +134,7 @@ def main():
             "service.version": config.VERSION,
             "host.name": config.OTEL_INSTANCE,
             "device.id": net.mac_address(),
-            "device.model.name": "Raspberry Pi Pico W",
+            "device.model.name": sys.implementation._machine.split(" with ")[0],
             "pico.firmware.version": facts["firmware"],
         },
         clock.epoch,
