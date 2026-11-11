@@ -11,6 +11,11 @@ makes it active. After ``MAX_ATTEMPTS`` uncommitted boots the trial is
 dropped and blacklisted, and the previous slot (or factory) runs again.
 Holding KEY1 while powering up boots the factory image for one boot.
 
+A bundle that cannot even be imported (the app's own crash handler and
+watchdog never start) is caught by the ``main.py`` shim, which calls
+:func:`failed`: a trial resets into its next counted attempt, an active slot
+is dropped back to the previous slot (or factory) and blacklisted.
+
 State (``/.ota/state.json``, written atomically)::
 
     {"active": {"slot", "build", "version", "micropython"} | null,
@@ -184,6 +189,47 @@ def commit():
     save(state)
     selected["state"] = "active"
     print("otaboot: committed build %s" % trial.get("build"))
+    return True
+
+
+def failed(exc, reset=None):
+    """The selected OTA code failed before the app took over (import error).
+
+    Returns False on a factory boot (the caller re-raises: REPL, as before
+    OTA). Otherwise records the failure and resets after a short pause
+    (Ctrl-C still reaches the REPL); ``reset`` is injectable for host tests.
+    """
+    kind = selected["state"]
+    if kind not in ("trial", "active"):
+        return False
+    try:
+        sys.print_exception(exc)
+    except AttributeError:  # CPython host tests
+        pass
+    detail = ("import failed: %r" % (exc,))[:200]
+    print("otaboot: %s build %s %s" % (kind, selected["build"], detail))
+    if kind == "active":
+        state = load()
+        active = state.get("active") or {}
+        build = active.get("build")
+        blacklist = state.setdefault("blacklist", [])
+        if build is not None and build not in blacklist:
+            blacklist.append(build)
+            del blacklist[:-BLACKLIST_KEEP]
+        previous = state.get("previous")
+        state["active"] = previous if _usable(previous) and previous.get("build") != build else None
+        state["previous"] = None
+        state["rolled_back"] = build
+        _queue(state, "rolled_back", build, detail)
+        save(state)
+    # A trial attempt is already counted on flash; the next boots finish it.
+    if reset is None:
+        import machine
+        import time
+
+        time.sleep(5)
+        reset = machine.reset
+    reset()
     return True
 
 

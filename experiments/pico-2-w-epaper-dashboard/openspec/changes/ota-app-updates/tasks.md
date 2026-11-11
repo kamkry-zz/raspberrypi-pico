@@ -30,7 +30,11 @@
 - [x] 5.1 Firmware rebuilt with `otaboot`/`ota` frozen and flashed (2026-11-11).
 - [x] 5.2 Heap with build 2 active after the first frame: 291,712 B free (factory 359,104 B).
 - [x] 5.3 Build 2 published → installed in slot a, trial, committed ~3.5 min after boot; registry `current`.
-- [ ] 5.4 Publish a build that raises at import → 3 boots, rollback to the previous slot, build blacklisted.
+- [x] 5.4 Publish a build that raises at import → 3 boots, rollback to the previous slot, build blacklisted.
+  2026-11-11: the first attempt exposed that an import-time failure left the board at the REPL (no watchdog yet);
+  the `main.py` shim now calls the frozen `otaboot.failed()` (reflashed). Build 3 (raises at import): installed
+  19:06, 3 trial resets, back on build 2 within ~20 s, `rolled_back` reported 19:09 (queued until the next check),
+  Telegram ↩️, Grafana `ota-device-failed` firing 19:16; build 3 yanked, good build 4 published to clear it.
 - [ ] 5.5 Pull power during the download and during the trial boot → board recovers.
 - [ ] 5.6 KEY1 at power-up boots factory.
 

@@ -1,4 +1,4 @@
-"""Pico W e-paper dashboard entry point (self-starting, watchdog-protected).
+"""Pico 2 W e-paper dashboard entry point (self-starting, watchdog-protected).
 
 Installed on the board as ``:main.py`` it starts on every power-up:
 
@@ -21,15 +21,20 @@ import sys
 
 sys.path.append("lib")
 
-# Pick the code for this boot: an OTA slot (/ota/a|b) or the frozen factory
+# Pick the code for this boot: an OTA slot (/.ota/a|b) or the frozen factory
 # image. otaboot is frozen and never shipped over the air; it never raises.
 try:
     import otaboot  # noqa: E402
 
     otaboot.select()
 except ImportError:
-    pass
+    otaboot = None
 
-import app  # noqa: E402  (OTA slot, frozen firmware or lib/app.mpy)
+try:
+    import app  # noqa: E402  (OTA slot, frozen firmware or lib/app.mpy)
 
-app.boot()
+    app.boot()
+except Exception as exc:  # app.boot() handles its own errors; this is import time
+    # A broken OTA bundle: count the trial attempt / drop the slot and reset.
+    if otaboot is None or not getattr(otaboot, "failed", lambda e: False)(exc):
+        raise

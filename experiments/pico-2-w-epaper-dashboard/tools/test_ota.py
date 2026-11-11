@@ -223,6 +223,35 @@ class BootTests(OtaTestBase):
         self.assertEqual(sel["state"], "factory")
         self.assertIn("unusable", sel["reason"])
 
+    def test_import_failure_in_trial_resets_until_rollback(self):
+        self.install(1)
+        resets = []
+        for _ in range(otaboot.MAX_ATTEMPTS):
+            self.assertEqual(self.boot()["state"], "trial")
+            self.assertTrue(otaboot.failed(ImportError("no module named x"), reset=lambda: resets.append(1)))
+        self.assertEqual(len(resets), otaboot.MAX_ATTEMPTS)
+        self.assertEqual(self.boot()["state"], "factory")
+        self.assertIn(1, otaboot.load()["blacklist"])
+
+    def test_import_failure_in_active_slot_falls_back(self):
+        self.install(1)
+        self.boot()
+        otaboot.commit()
+        self.install(2)
+        self.boot()
+        otaboot.commit()  # active = 2 (slot b), previous = 1 (slot a)
+        self.assertEqual(self.boot()["build"], 2)
+        self.assertTrue(otaboot.failed(ValueError("broken"), reset=lambda: None))
+        state = otaboot.load()
+        self.assertIn(2, state["blacklist"])
+        self.assertEqual(state["pending"][-1]["event"], "rolled_back")
+        sel = self.boot()
+        self.assertEqual((sel["state"], sel["build"]), ("active", 1))
+
+    def test_import_failure_on_factory_reraises(self):
+        self.assertEqual(self.boot()["state"], "factory")
+        self.assertFalse(otaboot.failed(ImportError("x"), reset=lambda: self.fail("reset")))
+
     def test_corrupt_state_boots_factory(self):
         os.makedirs(self.tmp + "/ota", exist_ok=True)
         Path(otaboot.STATE_FILE).write_text("{not json")

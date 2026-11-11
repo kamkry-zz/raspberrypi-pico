@@ -192,7 +192,10 @@ updates over USB (`firmware/flash.sh`).
   file's sha256, writes the inactive slot `/.ota/a|b` and resets into it on
   **trial**. The first frame commits it; 3 boots without one roll back to the
   previous slot (or the frozen factory image) and blacklist the build.
-  `otaboot` and `ota` are frozen-only and never shipped in a bundle.
+  A bundle that fails already at import (before the app's crash handler and
+  watchdog exist) is caught by the `main.py` shim (`otaboot.failed()`): a
+  trial resets into its next counted attempt, an active slot falls back to
+  the previous one. `otaboot` and `ota` are frozen-only and never shipped in a bundle.
 - **Factory image**: hold **KEY1** while powering up to run the frozen code for
   one boot (KEY0 = maintenance mode, as before). The slot root is `/.ota`
   (not `/ota`: a directory named like a module would shadow the frozen `ota`).
