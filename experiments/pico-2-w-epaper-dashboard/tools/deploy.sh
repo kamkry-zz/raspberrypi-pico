@@ -63,8 +63,9 @@ for f in ('maint', 'config.py'):  # stale flag; config now ships as .mpy
     except OSError: pass
 import sys
 sys.path.append('lib')
-mods = ('app buttons canvas clock epd42b font_large font_medium font_small http_client icons '
-        'metrics net pages store strings_pl supervisor telemetry timeutil weather').split()
+mods = ('app buttons canvas clock epd42b font_large font_medium font_small font_xlarge http_client '
+        'icons metrics net ota otaboot pages store strings_pl supervisor synmap telemetry timeutil '
+        'weather').split()
 for m in mods:  # a stale lib/x.py would shadow the new lib/x.mpy
     try: os.remove('lib/' + m + '.py')
     except OSError: pass

@@ -28,6 +28,93 @@ def _boot_facts():
     }
 
 
+# ---------------------------------------------------------------- OTA hooks
+# otaboot/ota are frozen-only (never in a bundle); a host or file-based run
+# without them simply skips OTA.
+def _otaboot():
+    try:
+        import otaboot
+
+        return otaboot
+    except ImportError:
+        return None
+
+
+def _ota_commit():
+    boot = _otaboot()
+    if boot is not None and boot.commit():
+        import telemetry
+
+        telemetry.log("OTA build %s committed" % boot.selected["build"], "INFO", {"event": "ota"})
+
+
+def _ota_check():
+    """Update check between refreshes; never raises, may reset into a trial."""
+    if _otaboot() is None:
+        return
+    import telemetry
+
+    try:
+        import ota
+
+        supervisor.release()  # the downloads want the contiguous reserve
+        try:
+            result = ota.check(beat=supervisor.beat, reset=lambda: supervisor.reset("OTA"))
+        finally:
+            supervisor.reserve()
+        print("OTA check:", result)
+    except Exception as exc:
+        telemetry.log("OTA check failed: %r" % (exc,), "WARN", {"event": "ota"})
+
+
+def _ota_gauges(telemetry):
+    try:
+        _ota_gauges_unsafe(telemetry)
+    except Exception as exc:  # OTA must never break /metrics
+        print("OTA gauges:", repr(exc))
+
+
+def _ota_gauges_unsafe(telemetry):
+    boot = _otaboot()
+    if boot is None:
+        return
+    sel = boot.selected
+    telemetry.gauge(
+        "pico.ota.info", 1,
+        {"state": sel["state"], "slot": sel["slot"] or "-", "build": sel["build"] or 0, "version": sel["version"] or "-"},
+    )
+    try:
+        import ota
+
+        for result, count in ota.results.items():
+            telemetry.set_sum("pico.ota.checks", count, {"result": result})
+    except ImportError:
+        pass
+
+
+def _ota_health():
+    try:
+        return _ota_health_unsafe()
+    except Exception as exc:  # OTA must never break /healthz
+        return {"ota_error": repr(exc)}
+
+
+def _ota_health_unsafe():
+    boot = _otaboot()
+    if boot is None:
+        return {}
+    sel = boot.selected
+    out = {"ota_state": sel["state"], "ota_slot": sel["slot"], "ota_build": sel["build"], "ota_reason": sel["reason"]}
+    try:
+        import ota
+
+        out["ota_last_check"] = ota.last["check"]
+        out["ota_last_result"] = ota.last["result"]
+    except ImportError:
+        pass
+    return out
+
+
 def main():
     print("Pico e-paper dashboard", config.VERSION)
     # Allocate the two contiguous 15 KB canvas planes FIRST: compiling the
@@ -84,6 +171,7 @@ def main():
         if info.get("rssi") is not None:
             telemetry.gauge("pico.wifi.rssi", info["rssi"])
         telemetry.gauge("pico.boot.info", 1, facts)
+        _ota_gauges(telemetry)
         telemetry.gauge("dashboard.page", state["page"] + 1)
         if state["last_frame_epoch"]:
             telemetry.gauge("dashboard.last_refresh.time", state["last_frame_epoch"])
@@ -100,7 +188,7 @@ def main():
         fresh = age is not None and age < config.HEALTH_MAX_FRAME_AGE_S
         booting = age is None and uptime < 300
         healthy = fresh or booting
-        return healthy, {
+        report = {
             "status": "ok" if healthy else "stale",
             "version": config.VERSION,
             "uptime_s": uptime,
@@ -110,6 +198,8 @@ def main():
             "time_synced": clock.synced(),
             "reset_cause": facts["reset_cause"],
         }
+        report.update(_ota_health())
+        return healthy, report
 
     def idle():
         supervisor.beat()
@@ -295,6 +385,8 @@ def main():
     result = refresh("boot", True, 30000)
     metrics.reset_interval()
     supervisor.clear_crashes()  # a frame made it to the panel
+    _ota_commit()  # a trial OTA bundle drew its first frame: keep it
+    next_ota = time.ticks_add(time.ticks_ms(), 120 * 1000)  # first check soon after boot
     telemetry.export(force=True)
     if config.RUN_ONCE:
         print("RUN_ONCE: first frame displayed; panel keeps the image")
@@ -351,6 +443,11 @@ def main():
                 result = refresh("hourly", True, 20000)
                 next_refresh = schedule_next()
                 next_retry = schedule_retry(result)
+
+            if config.OTA_ENABLED and time.ticks_diff(time.ticks_ms(), next_ota) >= 0:
+                next_ota = time.ticks_add(time.ticks_ms(), config.OTA_CHECK_MINUTES * 60 * 1000)
+                if net.is_connected():
+                    _ota_check()
 
             if telemetry.export_due() and info_cache[0].get("connected", True):
                 telemetry.export()

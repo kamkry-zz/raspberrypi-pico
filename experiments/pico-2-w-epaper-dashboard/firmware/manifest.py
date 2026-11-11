@@ -23,6 +23,8 @@ for name in (
     "icons",
     "metrics",
     "net",
+    "ota",  # OTA updater: frozen only, never in a bundle
+    "otaboot",  # OTA boot selector: frozen only, never in a bundle
     "pages",
     "store",
     "strings_pl",

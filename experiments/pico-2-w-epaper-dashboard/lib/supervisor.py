@@ -42,7 +42,7 @@ _SCRATCH1 = _WATCHDOG + 0x10
 _MAGIC = 0x5A5A0000
 # machine.reset() on the RP2040/RP2350 goes through the watchdog, so a deliberate
 # reset reads as WDT.  Tag deliberate resets so a real WDT trip stands out.
-_TAGS = ("", "CRASH", "MAINT", "WIFI", "DEPLOY", "MEM")
+_TAGS = ("", "CRASH", "MAINT", "WIFI", "DEPLOY", "MEM", "OTA")
 boot_tag = None  # tag of the reset that started this boot, if deliberate
 
 _wdt = None

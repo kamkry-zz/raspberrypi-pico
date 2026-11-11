@@ -66,7 +66,7 @@ PIN_KEY_NEXT = 17
 # --- Behaviour -------------------------------------------------------------
 BUTTON_DEBOUNCE_MS = 300
 BUTTON_LONG_PRESS_MS = 1200
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 USER_AGENT = "pico-epaper-dashboard/" + VERSION
 
 # --- Resilience (auto-start, power loss, network outages) --------------------
@@ -111,3 +111,11 @@ OTEL_SERVICE_NAME = "pico-epaper-dashboard"
 OTEL_INSTANCE = "raspberry-pi-pico-2-wh-02.iot"
 # Local Prometheus text endpoint (/metrics) and /healthz; 0 disables it.
 METRICS_PORT = 9100
+
+# --- Over-the-air updates (iot-registry; openspec/changes/ota-app-updates) ---
+# Fully automatic: a newer release signed with secrets.OTA_KEY is installed on
+# trial and committed after its first frame; 3 uncommitted boots roll back.
+OTA_ENABLED = True
+OTA_BASE_URL = "http://iot-registry.k3s/ota/v1"  # plain HTTP, LAN-only route
+OTA_APP = "pico-epaper-dashboard"
+OTA_CHECK_MINUTES = 60

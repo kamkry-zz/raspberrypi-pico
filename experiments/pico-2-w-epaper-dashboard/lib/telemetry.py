@@ -52,6 +52,8 @@ META = {
     "dashboard.weather.age": ("s", "gauge", "Age of the displayed weather data"),
     "dashboard.page": ("1", "gauge", "Currently displayed page (1-based)"),
     "dashboard.button.presses": ("1", "sum", "Side switch presses by key"),
+    "pico.ota.info": ("1", "gauge", "Constant 1; running OTA state, slot, build, version"),
+    "pico.ota.checks": ("1", "sum", "OTA update checks by result"),
 }
 
 _PROM_UNITS = {
@@ -103,6 +105,11 @@ def _key(name, attrs):
 def inc(name, attrs=None, amount=1):
     key = _key(name, attrs)
     _counters[key] = _counters.get(key, 0) + amount
+
+
+def set_sum(name, value, attrs=None):
+    """Set a counter to an absolute value kept elsewhere (e.g. ota.results)."""
+    _counters[_key(name, attrs)] = value
 
 
 def gauge(name, value, attrs=None):

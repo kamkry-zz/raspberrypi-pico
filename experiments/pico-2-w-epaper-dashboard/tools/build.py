@@ -20,12 +20,16 @@ BUILD = ROOT / "build"
 MPY_CROSS = [sys.executable, "-m", "mpy_cross"]
 MPY_VERSION = "1.29.0"  # firmware/build.sh MPY_TAG
 
-# Runtime modules only (bring-up/diagnostic helpers are not shipped).
+# Runtime modules only (bring-up/diagnostic helpers are not shipped). Keep in
+# sync with firmware/manifest.py (tools/test_ota.py checks it).
 LIBS = [
     "app", "buttons", "canvas", "clock", "epd42b", "font_large", "font_medium",
-    "font_small", "http_client", "icons", "metrics", "net", "pages", "store",
-    "strings_pl", "supervisor", "telemetry", "timeutil", "weather",
+    "font_small", "font_xlarge", "http_client", "icons", "metrics", "net", "ota",
+    "otaboot", "pages", "store", "strings_pl", "supervisor", "synmap", "telemetry",
+    "timeutil", "weather",
 ]
+# Frozen-only boot/update code: never part of an OTA bundle.
+OTA_PROTECTED = ("ota", "otaboot")
 
 
 def main():

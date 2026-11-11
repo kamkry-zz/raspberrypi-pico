@@ -169,6 +169,43 @@ drive (`RPI-RP2` on the Pico W) with `cp -X` (plain `cp` fails on macOS).
 The watchdog scratch registers moved on the RP2350 (`0x400D8000`; the RP2040
 address `0x40058000` is the RP2350 USB PLL), see `lib/supervisor.py`.
 
+### Over-the-air updates
+
+App code updates come from the central OTA registry in krysdom-api
+`iot-registry` (`http://iot-registry.k3s/ota/v1`, app `pico-epaper-dashboard`);
+design: `openspec/changes/ota-app-updates/` here and
+`openspec/changes/iot-registry-ota/` in krysdom-api. MicroPython itself still
+updates over USB (`firmware/flash.sh`).
+
+- **Publish = deploy** (every board installs it automatically; only when asked):
+
+  ```sh
+  .venv/bin/python tools/ota_publish.py --notes "what changed"            # dry run
+  .venv/bin/python tools/ota_publish.py --notes "what changed" --upload   # publish
+  ```
+
+  The bundle is `config.mpy` + `lib/*.mpy` (mpy-cross 1.29.0), ~75 KB, signed
+  with `OTA_KEY` (HMAC-SHA256) from the gitignored `secrets.py`; the registry
+  only stores the signature. Build numbers increase forever (yanked included).
+- **Board side**: `ota.check()` runs ~2 min after boot and then hourly. It
+  verifies the signature, target (`RPI_PICO2_W`, MicroPython 1.29.0) and every
+  file's sha256, writes the inactive slot `/.ota/a|b` and resets into it on
+  **trial**. The first frame commits it; 3 boots without one roll back to the
+  previous slot (or the frozen factory image) and blacklist the build.
+  A bundle that fails already at import (before the app's crash handler and
+  watchdog exist) is caught by the `main.py` shim (`otaboot.failed()`): a
+  trial resets into its next counted attempt, an active slot falls back to
+  the previous one. `otaboot` and `ota` are frozen-only and never shipped in a bundle.
+- **Factory image**: hold **KEY1** while powering up to run the frozen code for
+  one boot (KEY0 = maintenance mode, as before). The slot root is `/.ota`
+  (not `/ota`: a directory named like a module would shadow the frozen `ota`).
+- **Status**: `/healthz` (`ota_state`, `ota_slot`, `ota_build`,
+  `ota_last_result`), `/metrics` (`pico_ota_info`, `pico_ota_checks_total`),
+  the registry (`GET https://iot-registry.k3s/ota/apps/pico-epaper-dashboard/devices`),
+  Telegram (published / committed / rolled back / failed) and the Grafana
+  `iot` alerts `ota-device-failed`, `ota-device-behind`.
+- Free heap with a slot active: ~290 KB (bytecode in RAM; factory ~360 KB).
+
 ### OTLP push (prepared, off)
 
 `lib/telemetry.py` pushes OTLP/HTTP JSON metrics, logs (Loki) and refresh
