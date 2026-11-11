@@ -15,5 +15,5 @@
 ## 3. Cutover
 
 - [x] 3.1 krysdom-api `observability` scrape target → `raspberry-pi-pico-2-wh-02.iot:9100` (local gates, master a9f1af2e, ArgoCD synced; `up` = 1 on 2026-11-11).
-- [ ] 3.2 Move the panel from the Pico W to the Pico 2 WH; verify first frame and both keys.
+- [x] 3.2 Move the panel to the Pico 2 WH; first frame and both keys verified 2026-11-11. The panel must be attached at boot: the revision probe (0x2F) and BUSY polarity are chosen at init, so a panel seated on a running headless board draws once and then times out on BUSY until the next reset.
 - [ ] 3.3 Verify `up{job="pico-epaper-dashboard"}` = 1 and an hourly refresh `ok`.
