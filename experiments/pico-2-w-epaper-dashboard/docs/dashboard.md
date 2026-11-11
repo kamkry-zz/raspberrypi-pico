@@ -56,9 +56,9 @@ router's zone. At each refresh:
 3. Verify the returned name resolves back to the same address.
 4. Fall back to `config.DNS_NAME`, then the DHCP hostname.
 
-On this network the PTR returned
-`raspberry-pi-pico-w-01.iot`, verified against `192.168.4.51`. Because that
-name is 26 characters, the **dashboard shows the short DHCP name `pico-dash`**
+On this network the PTR is
+`raspberry-pi-pico-2-wh-02.iot` for `192.168.4.52` (Pico 2 W; the Pico W spare
+was `raspberry-pi-pico-w-01.iot` at `.51`). Because that name is long, the **dashboard shows the short DHCP name `pico-dash`**
 and a check mark; the full DNS name is on the Network and About pages.
 
 ### Weather

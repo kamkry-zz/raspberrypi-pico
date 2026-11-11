@@ -1,4 +1,4 @@
-"""Pico W metrics for the dashboard."""
+"""Pico W / Pico 2 W metrics for the dashboard."""
 
 import gc
 import os

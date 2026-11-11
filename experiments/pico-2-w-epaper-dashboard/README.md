@@ -1,6 +1,6 @@
-# Pico W e-Paper Dashboard (Pico-ePaper-4.2-B)
+# Pico 2 W e-Paper Dashboard (Pico-ePaper-4.2-B)
 
-Self-contained MicroPython experiment that turns a Pico W and a Waveshare
+Self-contained MicroPython experiment that turns a Pico 2 W and a Waveshare
 **Pico-ePaper-4.2-B** (400 × 300, black/white/red) into a home dashboard for
 Łódź: year progress, weather forecast, network identity, uptime/heap/flash,
 and a capability/refresh page.
@@ -14,7 +14,9 @@ buttons are working) on a key press.
 
 ## Hardware
 
-- Raspberry Pi Pico W (RP2040), MicroPython 1.23.0.
+- Raspberry Pi Pico 2 WH (RP2350, 520 KB SRAM, 4 MB flash), MicroPython
+  1.29.0 with `lib/` frozen (since 2026-11-11). The previous Pico W (RP2040,
+  MicroPython 1.23.0) is a cold spare: same pinout, same code, still bootable.
 - Waveshare Pico-ePaper-4.2-B, 4.2 inch, 400 × 300, red/black/white.
 - USB data cable; the module is powered from VSYS.
 - No Raspberry Pi host is involved; all data comes from the Pico itself.
@@ -68,12 +70,13 @@ cp secrets.example.py secrets.py
 
 `secrets.py` is gitignored and is never printed or committed. The SSID is
 fixed in `config.py` to **`krys_dom_IoT`**; there is no fallback to another
-network. The Pico W only supports 2.4 GHz and WPA2; the IoT SSID must allow
+network. The CYW43439 radio only supports 2.4 GHz and WPA2; the IoT SSID must allow
 DNS and outbound HTTP/HTTPS (NTP is optional).
 
-The Pico's MAC is `28:cd:c1:0d:34:f0` on this unit; the router has a static
-DHCP reservation for it. The DNS PTR lookup found
-`raspberry-pi-pico-w-01.iot` and verified it against `192.168.4.51`.
+The Pico 2 W's MAC is `98:fe:54:1a:80:d7`; the router reserves `192.168.4.52`
+for it and DNS names it `raspberry-pi-pico-2-wh-02.iot` (Terraform
+`pfsense-router`). The Pico W spare (`28:cd:c1:0d:34:f0`) keeps `192.168.4.51`
+/ `raspberry-pi-pico-1-w-01.iot`.
 
 ## Run
 
@@ -84,7 +87,7 @@ tools/deploy.sh          # build .mpy, back up :main.py, copy, reset
 ```
 
 `tools/deploy.sh` enters maintenance mode, backs up and verifies `:main.py`,
-runs `tools/build.py` (precompiles `lib/` with mpy-cross **1.23.0**, matching
+runs `tools/build.py` (precompiles `lib/` with mpy-cross **1.29.0**, matching
 the firmware) and copies `build/` to the board. `main.py` on the board is a
 3-line shim; everything else is `.mpy`.
 
@@ -126,7 +129,7 @@ The next reset or power cycle returns to the dashboard.
 
 ### Observability
 
-- `http://raspberry-pi-pico-w-01.iot:9100/metrics` — Prometheus text:
+- `http://raspberry-pi-pico-2-wh-02.iot:9100/metrics` — Prometheus text:
   `pico_uptime_seconds`, `pico_heap_{free,used}_bytes`,
   `pico_flash_{used,total}_bytes`, `pico_cpu_temperature_celsius`,
   `pico_cpu_active_ratio` (load), `pico_wifi_{connected,rssi_dBm}`,
@@ -141,25 +144,30 @@ The next reset or power cycle returns to the dashboard.
 
 ### Firmware and memory
 
-The board runs **MicroPython v1.23.0 built with `lib/` frozen into flash**
-(`firmware/manifest.py`). Frozen bytecode and the font/table constants run
-from flash, so the running app has ~113 KB of heap free instead of ~60 KB.
+The board runs **MicroPython v1.29.0 (`RPI_PICO2_W`) built with `lib/` frozen
+into flash** (`firmware/manifest.py`). Frozen bytecode and the font/table
+constants run from flash; the running app has ~360 KB of heap free (the Pico W
+had ~113 KB frozen, ~60 KB without).
 `config.mpy`, `secrets.py`, `certs/` and the `main.py` shim stay on the
 filesystem, so configuration changes need only `tools/deploy.sh`; **code
 changes in `lib/` need a firmware rebuild and flash**:
 
 ```sh
-firmware/build.sh      # Docker (Debian, gcc-arm-none-eabi); cache in firmware/.cache
+firmware/build.sh      # Docker; MPY_TAG=v1.23.0 BOARD=RPI_PICO_W for the Pico W spare
 firmware/flash.sh      # machine.bootloader() + copy UF2, no BOOTSEL press needed
 tools/deploy.sh        # config/secrets/certs/main.py; detects the frozen firmware
+# With two boards on USB both scripts need PORT=/dev/cu.usbmodemXXXX.
 ```
 
-The UF2 ends at 880 KB; the LittleFS region starts at 1200 KB and is never
-touched by flashing. Roll back to stock firmware with
-`firmware/flash.sh backups/RPI_PICO_W-20240602-v1.23.0.uf2`, then
+The UF2 ends at ~950 KB; the 2560 KB LittleFS region starts at 1536 KB and is
+never touched by flashing (`flash.sh` checks this and refuses a UF2 for the
+wrong chip). Roll back to stock firmware with
+`firmware/flash.sh backups/RPI_PICO2_W-20260824-v1.29.0.uf2`, then
 `tools/deploy.sh` (it then copies `lib/*.mpy` again). If the board does not
-come back, hold BOOTSEL while plugging in USB and copy a UF2 to `RPI-RP2`
-with `cp -X` (plain `cp` fails on macOS).
+come back, hold BOOTSEL while plugging in USB and copy a UF2 to the `RP2350`
+drive (`RPI-RP2` on the Pico W) with `cp -X` (plain `cp` fails on macOS).
+The watchdog scratch registers moved on the RP2350 (`0x400D8000`; the RP2040
+address `0x40058000` is the RP2350 USB PLL), see `lib/supervisor.py`.
 
 ### OTLP push (prepared, off)
 

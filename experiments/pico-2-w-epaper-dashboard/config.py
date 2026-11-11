@@ -2,7 +2,7 @@
 # This file is safe to commit. The Wi-Fi password lives in secrets.py.
 
 # --- Wi-Fi -----------------------------------------------------------------
-# Dedicated IoT WLAN. The Pico W is 2.4 GHz only; this SSID must be 2.4 GHz
+# Dedicated IoT WLAN. The Pico 2 W (CYW43439) is 2.4 GHz only; this SSID must be 2.4 GHz
 # and use WPA2-PSK. There is deliberately no fallback to another network.
 WIFI_SSID = "krys_dom_IoT"
 WIFI_COUNTRY = "PL"
@@ -108,6 +108,6 @@ OTLP_CA_FILE = "certs/k3s-ca.der"  # krysdom my-selfsigned-ca, DER, public
 OTLP_INTERVAL_S = 60
 OTLP_TIMEOUT_S = 6
 OTEL_SERVICE_NAME = "pico-epaper-dashboard"
-OTEL_INSTANCE = "raspberry-pi-pico-w-01.iot"
+OTEL_INSTANCE = "raspberry-pi-pico-2-wh-02.iot"
 # Local Prometheus text endpoint (/metrics) and /healthz; 0 disables it.
 METRICS_PORT = 9100

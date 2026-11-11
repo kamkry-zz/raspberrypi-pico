@@ -3,7 +3,7 @@
 Compiling ~100 KB of source on the Pico at boot leaves the heap too
 fragmented for the 26 KB TLS handshake used by the OTLP export.  Shipping
 bytecode compiled on the host avoids that.  ``mpy-cross`` must match the
-board firmware (MicroPython 1.23.0, mpy v6).
+board firmware (MicroPython 1.29.0 on the Pico 2 W, mpy v6).
 
     .venv/bin/python tools/build.py
     .venv/bin/mpremote mount build run build/main.py    # try without installing
@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
 MPY_CROSS = [sys.executable, "-m", "mpy_cross"]
+MPY_VERSION = "1.29.0"  # firmware/build.sh MPY_TAG
 
 # Runtime modules only (bring-up/diagnostic helpers are not shipped).
 LIBS = [
@@ -37,8 +38,8 @@ def main():
 
     version = subprocess.run(MPY_CROSS + ["--version"], capture_output=True, text=True)
     print(version.stdout.strip() or version.stderr.strip())
-    if "1.23.0" not in version.stdout + version.stderr:
-        sys.exit("mpy-cross must be 1.23.0 to match the board (pip install -r requirements.txt)")
+    if "v" + MPY_VERSION not in version.stdout + version.stderr:
+        sys.exit("mpy-cross must be %s to match the board (pip install -r requirements.txt)" % MPY_VERSION)
 
     for name in LIBS:
         subprocess.run(

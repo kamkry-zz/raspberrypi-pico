@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Install the dashboard on the Pico W so it starts on every power-up.
+# Install the dashboard on the Pico (2) W so it starts on every power-up.
 #
 #   tools/deploy.sh            # from experiments/pico-2-w-epaper-dashboard
-#   PORT=/dev/cu.usbmodem1101 tools/deploy.sh
+#   PORT=/dev/cu.usbmodem101 tools/deploy.sh   # required with 2+ boards
 #
 # Steps: interrupt the running app (it reboots into one maintenance boot with
 # no watchdog), back up the board's current :main.py into backups/ (verified),
@@ -13,8 +13,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 MP=.venv/bin/mpremote
-PORT=${PORT:-$($MP connect list | awk '/MicroPython/ {print $1; exit}')}
-[ -n "$PORT" ] || { echo "No MicroPython board found (mpremote connect list)"; exit 1; }
+if [ -z "${PORT:-}" ]; then
+  ports=$($MP connect list | awk '/MicroPython/ {print $1}')
+  [ "$(printf '%s\n' "$ports" | grep -c .)" = 1 ] \
+    || { echo "Need exactly one MicroPython board or PORT=<port>:"; $MP connect list | grep MicroPython; exit 1; }
+  PORT=$ports
+fi
 [ -f secrets.py ] || { echo "secrets.py missing (copy secrets.example.py)"; exit 1; }
 
 wait_port() {
@@ -68,11 +72,16 @@ for m in mods:  # a stale lib/x.py would shadow the new lib/x.mpy
 # With the dashboard firmware (firmware/build.sh + firmware/flash.sh) lib/ is
 # compiled into flash and wins over /lib, so only config, secrets, certs and
 # the main.py shim are copied; stale lib/*.mpy copies are removed.
+# Probe with strings_pl: it imports nothing, so this works on a fresh board
+# before config.mpy exists (app imports config).
 frozen=$($MP connect "$PORT" exec "
 import sys
 sys.path.append('lib')
-import app
-print('FILES' if '/' in app.__file__ else 'FROZEN')" 2>/dev/null | tr -d '\r' | tail -1)
+try:
+    import strings_pl
+    print('FILES' if '/' in strings_pl.__file__ else 'FROZEN')
+except ImportError:
+    print('FILES')" 2>/dev/null | tr -d '\r' | tail -1)
 echo "   board firmware: $frozen"
 args=()
 while IFS= read -r f; do
