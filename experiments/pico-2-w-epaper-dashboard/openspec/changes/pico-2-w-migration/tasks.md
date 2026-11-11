@@ -14,6 +14,6 @@
 
 ## 3. Cutover
 
-- [ ] 3.1 krysdom-api `observability` scrape target → `raspberry-pi-pico-2-wh-02.iot:9100`.
+- [x] 3.1 krysdom-api `observability` scrape target → `raspberry-pi-pico-2-wh-02.iot:9100` (local gates, master a9f1af2e, ArgoCD synced; `up` = 1 on 2026-11-11).
 - [ ] 3.2 Move the panel from the Pico W to the Pico 2 WH; verify first frame and both keys.
 - [ ] 3.3 Verify `up{job="pico-epaper-dashboard"}` = 1 and an hourly refresh `ok`.
